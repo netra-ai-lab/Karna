@@ -42,7 +42,7 @@ Test sets; greedy CTC decoding, no language model. CER for Khmer, WER for Englis
 
 ## Architecture
 
-<p align="center"><img src="https://huggingface.co/Darayut/sota-large/resolve/main/assets/pruning.png" width="100%" alt="The encoder before and after pruning: CNN kept, attention heads and FFN units removed"></p>
+<p align="center"><img src="https://huggingface.co/Darayut/sota-large/resolve/main/assets/pruning.png" width="100%" alt="Sota's architecture with one transformer layer opened up, beside the fine-tuned omniASR CTC-1B before and sota-large after structured pruning"></p>
 
 *What is pruned*, shown for sota-large: whole attention heads (MHA) and FFN units are removed from every transformer layer, and the CNN front end is kept. Each cell is a quarter of a layer's heads or units.
 
