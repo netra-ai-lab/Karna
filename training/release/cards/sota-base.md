@@ -42,7 +42,11 @@ Test sets; greedy CTC decoding, no language model. CER for Khmer, WER for Englis
 
 ## Architecture
 
-<p align="center"><img src="https://huggingface.co/Darayut/sota-base/resolve/main/assets/pruning.png" width="100%" alt="Sota's architecture with one transformer layer opened up, beside the fine-tuned omniASR CTC-1B before and sota-large after structured pruning"></p>
+<p align="center"><img src="https://huggingface.co/Darayut/sota-base/resolve/main/assets/architecture.png" width="70%" alt="Sota's architecture, reading upwards from 16 kHz audio to the CTC head, with one transformer layer opened up"></p>
+
+*The model*, reading upwards, with one transformer layer opened up: 16 kHz audio, a feature extractor of 7 convolutional layers giving one frame every 20 ms, a convolutional position encoder added back to the frames, 48 pre-LayerNorm transformer layers of width 1,280, a final LayerNorm and a CTC head over 9,812 characters. Every attention head and every FFN unit has its own Hard Concrete gate z. The cells in the opened layer are layer 12 of sota-large: 8 of 16 heads and 3,355 of 5,120 FFN units kept; which ones are kept is schematic.
+
+<p align="center"><img src="https://huggingface.co/Darayut/sota-base/resolve/main/assets/pruning.png" width="100%" alt="The fine-tuned omniASR CTC-1B before structured pruning and sota-large after: CNN and CTC head kept, attention heads and FFN units removed"></p>
 
 *What is pruned*, shown for sota-large: whole attention heads (MHA) and FFN units are removed from every transformer layer, and the CNN front end is kept. Each cell is a quarter of a layer's heads or units.
 

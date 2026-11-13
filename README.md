@@ -74,10 +74,10 @@ SOTA was trained on about **1,537 hours** of speech, mixed 50/50 between Khmer a
 ## 3. Model Architecture
 
 <p align="center">
-  <img src="assets/pruning.png" width="1000" alt="Sota's architecture with one transformer layer opened up, beside the fine-tuned omniASR CTC-1B before and sota-large after structured pruning" />
+  <img src="assets/architecture.png" width="640" alt="Sota's architecture, reading upwards from 16 kHz audio to the CTC head, with one transformer layer opened up" />
 </p>
 
-<p><em>Figure 1: Left, the model with one transformer layer opened up: 16 kHz audio, a feature extractor of 7 convolutional layers giving one frame every 20 ms, a convolutional position encoder added back to the frames, 48 pre-LayerNorm transformer layers of width 1,280, and a CTC head over 9,812 characters. The cells in the opened layer are layer 12 of sota-large; which ones are kept is schematic. Right, structured pruning removes whole attention heads (MHA) and FFN units from every transformer layer, chosen by one Hard Concrete gate each; the CNN front end is kept. Each cell is a quarter of a layer's heads or FFN units: layer 12 of sota-large keeps 8 of 16 heads and 3,355 of 5,120 FFN units, and layer 40 keeps no heads and 228 FFN units. Training runs in five steps: fine-tune, prune, cut, distil with the mask frozen, and recover with CTC and logit distillation ([docs/DESIGN.md](docs/DESIGN.md)).</em></p>
+<p><em>Figure 1: The model, reading upwards, with one transformer layer opened up: 16 kHz audio, a feature extractor of 7 convolutional layers giving one frame every 20 ms, a convolutional position encoder added back to the frames, 48 pre-LayerNorm transformer layers of width 1,280, a final LayerNorm and a CTC head over 9,812 characters. Every attention head and every FFN unit has its own Hard Concrete gate z. The cells in the opened layer are layer 12 of sota-large: 8 of 16 heads and 3,355 of 5,120 FFN units kept; which ones are kept is schematic.</em></p>
 
 **The base model.** A wav2vec2-style encoder:
 - a 7-layer CNN feature extractor (20 ms frames);
@@ -88,10 +88,16 @@ SOTA was trained on about **1,537 hours** of speech, mixed 50/50 between Khmer a
 **What pruning removes.** Each encoder layer keeps only the attention heads and FFN units that the L0 gates leave open, so every layer has its own width. The model dimension, the CNN front end and the CTC head stay intact.
 
 <p align="center">
+  <img src="assets/pruning.png" width="1000" alt="The fine-tuned omniASR CTC-1B before structured pruning and sota-large after: CNN and CTC head kept, attention heads and FFN units removed" />
+</p>
+
+<p><em>Figure 2: Structured pruning removes whole attention heads (MHA) and FFN units from every transformer layer, chosen by one Hard Concrete gate each; the CNN front end is kept. Each cell is a quarter of a layer's heads or FFN units: layer 12 of sota-large keeps 8 of 16 heads and 3,355 of 5,120 FFN units, and layer 40 keeps no heads and 228 FFN units. Training runs in five steps: fine-tune, prune, cut, distil with the mask frozen, and recover with CTC and logit distillation ([docs/DESIGN.md](docs/DESIGN.md)).</em></p>
+
+<p align="center">
   <img src="assets/inference_time.png" width="560" alt="Inference time for 60 s of audio at 0% and 80% encoder sparsity, for the base and large models" />
 </p>
 
-<p><em>Figure 2: Inference time before and after pruning, for one 60 s utterance (batch 1, bf16, median of 20 runs on one machine; `training/scripts/07_time_inference.py`). At 80% encoder sparsity sota-base runs 1.6× faster than its teacher and sota-large 2.2× faster. Over the batched test sets (the Speed column below) the speed-ups are 1.8× and 2.5×.</em></p>
+<p><em>Figure 3: Inference time before and after pruning, for one 60 s utterance (batch 1, bf16, median of 20 runs on one machine; `training/scripts/07_time_inference.py`). At 80% encoder sparsity sota-base runs 1.6× faster than its teacher and sota-large 2.2× faster. Over the batched test sets (the Speed column below) the speed-ups are 1.8× and 2.5×.</em></p>
 
 | Feature | Detail |
 | :--- | :--- |
