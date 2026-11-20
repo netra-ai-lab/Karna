@@ -3,7 +3,7 @@
 The module tree and parameter names mirror ``fairseq2``'s ``Wav2Vec2AsrModel``
 (``encoder_frontend.feature_extractor.layers.N.conv``, ``encoder.layers.N.self_attn.q_proj``,
 ``final_proj``, ...), so an ``omniASR_CTC_*`` checkpoint loads with a near-identity key
-map (``sota_train.convert``) and the forward pass matches fairseq2's frame for frame:
+map (``karna_train.convert``) and the forward pass matches fairseq2's frame for frame:
 pre-LN transformer layers, a final encoder LayerNorm, a weight-normed convolutional
 position encoder, and no frontend LayerNorm.
 

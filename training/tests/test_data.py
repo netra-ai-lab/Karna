@@ -4,7 +4,7 @@ import json
 
 import numpy as np
 
-from sota_train.data import SAMPLE_RATE, DataConfig, Example, MixedUnitStream
+from karna_train.data import SAMPLE_RATE, DataConfig, Example, MixedUnitStream
 
 
 def fake_stream(tmp_path, fleurs_fraction):

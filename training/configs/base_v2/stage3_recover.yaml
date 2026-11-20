@@ -1,6 +1,6 @@
-# sota-base v2: the base chain with a full-pass Stage 1, 960 h of LibriSpeech and a longer recovery
+# karna-base v2: the base chain with a full-pass Stage 1, 960 h of LibriSpeech and a longer recovery
 # (docs/DESIGN.md §4). Output distillation from the 1B was tried and dropped (docs/RESULTS.md §6).
-# omniASR CTC-300M (sota-base, 24 layers, dim 1024)
+# omniASR CTC-300M (karna-base, 24 layers, dim 1024)
 # Stage 3: recovery of the pruned model with CTC + logit distillation from the Stage 1 teacher
 # (kd.weight * frame-level KL to the teacher's output distribution), 24k steps. The KD term
 # keeps the English the teacher knows from drifting while CTC adapts the small model.

@@ -1,6 +1,6 @@
-# sota-large v2: the 1B chain on the v2 recipe of configs/base_v2/ (full-pass Stage 1, 960 h of
+# karna-large v2: the 1B chain on the v2 recipe of configs/base_v2/ (full-pass Stage 1, 960 h of
 # LibriSpeech, slower sparsity ramp, longer recovery), from configs/large/ for the 1B-specific settings.
-# omniASR CTC-1B (sota-large, 48 layers, dim 1280)
+# omniASR CTC-1B (karna-large, 48 layers, dim 1280)
 # Stage 3: recovery of the pruned model with CTC + logit distillation from the Stage 1 teacher
 # (kd.weight * frame-level KL to the teacher's output distribution), 24k steps (v1: 16k; base_v2: 24k).
 # The KD term keeps the English the teacher knows from drifting while CTC adapts the small model.

@@ -14,8 +14,8 @@ import editdistance
 import torch
 
 from .data import EvalItem, eval_batches
-from sota.model import PrunableCTC, normalize_audio_
-from sota.text import CharVocab
+from karna.model import PrunableCTC, normalize_audio_
+from karna.text import CharVocab
 
 
 @torch.no_grad()

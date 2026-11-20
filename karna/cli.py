@@ -1,4 +1,4 @@
-"""Command line: ``sota transcribe audio.wav [...]`` and ``sota models``."""
+"""Command line: ``karna transcribe audio.wav [...]`` and ``karna models``."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from .hub import DEFAULT_MODEL, MODELS
 
 
 def main(argv: list[str] | None = None) -> None:
-    ap = argparse.ArgumentParser(prog="sota", description="Khmer and English speech recognition.")
+    ap = argparse.ArgumentParser(prog="karna", description="Khmer and English speech recognition.")
     sub = ap.add_subparsers(dest="command", required=True)
     t = sub.add_parser("transcribe", help="print one line per file: <path><TAB><text>")
     t.add_argument("audio", nargs="+", help="audio files (wav, flac, ogg, mp3, ...)")

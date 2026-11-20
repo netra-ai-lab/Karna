@@ -3,7 +3,7 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "netra-sota"
+name = "netra-karna"
 version = "0.1.0"
 description = "Compact Khmer and English speech recognition: Omnilingual ASR CTC models structurally pruned to 80% sparsity."
 readme = "README.md"
@@ -33,17 +33,17 @@ train = [
 dev = ["pytest"]
 
 [project.scripts]
-sota = "sota.cli:main"
+karna = "karna.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/netra-ai-lab/SOTA"
-Models = "https://huggingface.co/Darayut/sota-base"
+Homepage = "https://github.com/netra-ai-lab/Karna"
+Models = "https://huggingface.co/Netra-Lab/karna-base"
 
 [tool.setuptools.packages.find]
-include = ["sota*"]
+include = ["karna*"]
 
 [tool.setuptools.package-data]
-sota = ["vocab.json"]
+karna = ["vocab.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "training/tests"]

@@ -5,4 +5,4 @@ if [ -z "${PY:-}" ]; then
     if [ -x ../.venv/bin/python ]; then PY=$(cd .. && pwd)/.venv/bin/python; else PY=python3; fi
 fi
 export PY
-export PYTHONPATH="$PWD:$(cd .. && pwd)${PYTHONPATH:+:$PYTHONPATH}"   # sota_train (here) and sota (repo root)
+export PYTHONPATH="$PWD:$(cd .. && pwd)${PYTHONPATH:+:$PYTHONPATH}"   # karna_train (here) and karna (repo root)

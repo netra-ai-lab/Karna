@@ -1,9 +1,9 @@
-"""Export a pruned checkpoint as a release folder that ``sota.load_model`` reads.
+"""Export a pruned checkpoint as a release folder that ``karna.load_model`` reads.
 
-    python scripts/06_export_pruned.py runs/base/stage3_recover/latest.pt runs/base/release/sota-base
+    python scripts/06_export_pruned.py runs/base/stage3_recover/latest.pt runs/base/release/karna-base
 
 Writes model.safetensors, config.json (per-layer heads and FFN widths) and vocab.json, then
-reloads the folder with ``sota.load_model`` and checks it reproduces the checkpoint's logits.
+reloads the folder with ``karna.load_model`` and checks it reproduces the checkpoint's logits.
 """
 
 from __future__ import annotations
@@ -18,9 +18,9 @@ import torch
 from safetensors.torch import save_file
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import sota  # noqa: E402
-from sota.model import ArchConfig, PrunableCTC  # noqa: E402
-from sota.text import VOCAB_PATH  # noqa: E402
+import karna  # noqa: E402
+from karna.model import ArchConfig, PrunableCTC  # noqa: E402
+from karna.text import VOCAB_PATH  # noqa: E402
 
 
 def main() -> None:
@@ -39,7 +39,7 @@ def main() -> None:
     ref = PrunableCTC(ArchConfig.from_dict(ck["arch"]))
     ref.load_state_dict(ck["model"])
     ref.eval()
-    asr = sota.load_model(out, device="cpu")
+    asr = karna.load_model(out, device="cpu")
     g = torch.Generator().manual_seed(0)
     audio = torch.randn(1, 16000 * 3, generator=g) * 0.1
     lens = torch.tensor([audio.shape[1]])

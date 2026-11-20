@@ -1,12 +1,12 @@
-# Training SOTA
+# Training Karna
 
-Everything for training lives in `training/` and is separate from the `sota` package, so the package never needs it. One command runs the whole recipe for one model size:
+Everything for training lives in `training/` and is separate from the `karna` package, so the package never needs it. One command runs the whole recipe for one model size:
 
 ```bash
 pip install -e ".[train]"
 cp training/local.env.example training/local.env      # then point it at your data
-training/run.sh base                                   # omniASR CTC-300M -> sota-base (73M)
-training/run.sh large                                  # omniASR CTC-1B   -> sota-large (204M)
+training/run.sh base                                   # omniASR CTC-300M -> karna-base (73M)
+training/run.sh large                                  # omniASR CTC-1B   -> karna-large (204M)
 ```
 
 Each step skips itself once its output exists, and each training stage resumes from its last checkpoint. To continue after an interruption, run the same command again.
@@ -17,7 +17,7 @@ Each step skips itself once its output exists, and each training stage resumes f
 | --- | --- | --- |
 | 1. Assets | `scripts/00_get_assets.sh 1b\|300m` | stock checkpoint, char tokenizer, LibriSpeech (100 + 360 h, dev, test) |
 | 2. Manifests | `scripts/01_prepare_data.py` and `--only fleurs` | `data/*.jsonl`, `data/*_units.json`; downloads FLEURS en_us from the Hub |
-| 3. Convert | `python -m sota_train.convert --size 1b\|300m` | `<SOTA_MODELS_DIR>/<name>/<name>.sota.pt`, after a logit-parity check against fairseq2 |
+| 3. Convert | `python -m karna_train.convert --size 1b\|300m` | `<KARNA_MODELS_DIR>/<name>/<name>.karna.pt`, after a logit-parity check against fairseq2 |
 | 4. Chain | `scripts/run_chain.sh large\|base` | `runs/<size>/…`, then `runs/eval/<size>.json` and `runs/eval/<size>_teacher.json` |
 | 5. Release | `scripts/06_export_pruned.py`, `scripts/05_export_teacher.py` | `runs/<size>/release/` in the Hugging Face layout |
 
@@ -39,11 +39,11 @@ All locations are environment variables. `training/local.env` (git-ignored) sets
 
 | Variable | Default | Holds |
 | --- | --- | --- |
-| `SOTA_MODELS_DIR` | `training/pretrained` | `omniASR-CTC-1B/`, `omniASR-CTC-300M/` (stock `.pt`, converted `.sota.pt`) and `omniASR_tokenizer.model` |
+| `KARNA_MODELS_DIR` | `training/pretrained` | `omniASR-CTC-1B/`, `omniASR-CTC-300M/` (stock `.pt`, converted `.karna.pt`) and `omniASR_tokenizer.model` |
 | `ASR_ROOT` | `training/corpora/khmer` | the Khmer corpus (below) |
 | `LIBRI_DIR` | `training/corpora/librispeech` | `LibriSpeech/<subset>/`, downloaded by step 1 |
 | `FLEURS_EN_DIR` | `training/corpora/fleurs-en` | FLEURS en_us wavs, written by step 2 |
-| `SOTA_CACHE` | `training/cache` | decoded eval audio and the generated fairseq2 asset cards |
+| `KARNA_CACHE` | `training/cache` | decoded eval audio and the generated fairseq2 asset cards |
 
 **The Khmer corpus is a manual download.** DDD is public at [Digital-Divide-Data/khmer-speech-dataset](https://huggingface.co/datasets/Digital-Divide-Data/khmer-speech-dataset) (CC BY-SA 4.0, 450,396 utterances), but the scripts don't fetch it. Training reads it through a shard index of our own (the DDD rows re-sharded into 4,423 parquet files), so `ASR_ROOT` must already hold:
 
@@ -65,12 +65,12 @@ manifests/dev_fleurs.jsonl             FLEURS-km validation
 cd training && source scripts/env.sh
 scripts/run_stage.sh configs/base/stage2_prune_s80.yaml [--set optim.max_steps=50 ...]
 "$PY" scripts/03_evaluate.py runs/base/stage3_recover/latest.pt --name my_eval [--sets ddd_test libri_test_clean]
-"$PY" scripts/07_time_inference.py            # inference time of each teacher and SOTA model -> runs/eval/inference_time.json
+"$PY" scripts/07_time_inference.py            # inference time of each teacher and Karna model -> runs/eval/inference_time.json
 ```
 
 `scripts/env.sh` reads `local.env` and picks the interpreter: the repo's `.venv` if present, else `python3`. It also puts `training/` and the repo root on `PYTHONPATH`.
 
-**sota-base v2.** `configs/base_v2/` is the base chain with a full-pass Stage 1 (about 62k steps), 960 h of LibriSpeech and a longer Stage 3 ([DESIGN.md](DESIGN.md) §4). `configs/large_v2/` is the same v2 chain for the 1B: the full-pass Stage 1, then the v1 1B prune / 2b / recovery settings with the v2 changes (6k-step sparsity ramp, 24k-step Stage 3). Both need train-other-500:
+**karna-base v2.** `configs/base_v2/` is the base chain with a full-pass Stage 1 (about 62k steps), 960 h of LibriSpeech and a longer Stage 3 ([DESIGN.md](DESIGN.md) §4). `configs/large_v2/` is the same v2 chain for the 1B: the full-pass Stage 1, then the v1 1B prune / 2b / recovery settings with the v2 changes (6k-step sparsity ramp, 24k-step Stage 3). Both need train-other-500:
 
 ```bash
 SUBSETS=train-other-500 scripts/00_get_assets.sh 300m      # or scripts/fetch_parallel.sh on a capped line
@@ -118,7 +118,7 @@ training/runs/
 │   ├── stage2_prune_s80/     latest.pt (gated), pruned.pt + pruned.json (per-layer architecture)
 │   ├── stage2b_distill/      latest.pt
 │   ├── stage3_recover/       latest.pt  <- the released model
-│   └── release/              sota-<size>/, teacher/
+│   └── release/              karna-<size>/, teacher/
 ├── experiments/              the ablation runs
 ├── eval/<name>.json          test-set scores, parameters, GMAC/s, real-time factor
 └── logs/                     <size>_<stage>.log, chain_<size>.log
@@ -133,6 +133,6 @@ Training logs go to `runs/logs/<size>_<stage>.log` and metrics to `<run_dir>/met
 | Mode | Use |
 | --- | --- |
 | `amp` | fp32 weights with bf16 autocast. The 300M stages and every pruned-model stage use it. |
-| `offload` | bf16 weights and gradients on the GPU; fp32 master weights and AdamW moments in host memory, updated there each step (`sota_train/offload.py`). The 1B stages use it. |
+| `offload` | bf16 weights and gradients on the GPU; fp32 master weights and AdamW moments in host memory, updated there each step (`karna_train/offload.py`). The 1B stages use it. |
 
 Stage 2 freezes the CNN feature extractor, since its channels aren't pruned, and uses gradient checkpointing. All gates are sampled once per forward pass, outside the checkpointed region, so the recompute during backward sees the same masks (`tests/test_model.py`).

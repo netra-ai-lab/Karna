@@ -5,8 +5,8 @@ local asset card); this module reads the architecture off the loaded module tree
 maps the state dict onto ``PrunableCTC`` (an identity map apart from the weight-normed
 position conv), and checks that both models produce the same logits.
 
-    python -m sota_train.convert --size 1b      # -> $SOTA_MODELS_DIR/omniASR-CTC-1B/omniASR-CTC-1B.sota.pt
-    python -m sota_train.convert --vocab        # re-export sota/vocab.json from the tokenizer
+    python -m karna_train.convert --size 1b      # -> $KARNA_MODELS_DIR/omniASR-CTC-1B/omniASR-CTC-1B.karna.pt
+    python -m karna_train.convert --vocab        # re-export karna/vocab.json from the tokenizer
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ from pathlib import Path
 
 import torch
 
-from sota.model import ArchConfig, PrunableCTC, normalize_audio_
-from sota.text import SPACE_PIECE, SPECIAL, VOCAB_PATH, CharVocab
+from karna.model import ArchConfig, PrunableCTC, normalize_audio_
+from karna.text import SPACE_PIECE, SPECIAL, VOCAB_PATH, CharVocab
 
 from . import SIZES, converted_checkpoint, fairseq2_card  # importing the package registers the asset cards
 
@@ -76,7 +76,7 @@ def convert(card: str) -> tuple[PrunableCTC, object]:
 
 
 def vocab_from_fairseq2(card: str) -> CharVocab:
-    """The char tokenizer's pieces in id order (how ``sota/vocab.json`` was made)."""
+    """The char tokenizer's pieces in id order (how ``karna/vocab.json`` was made)."""
     from fairseq2.data.tokenizers import load_tokenizer
 
     tok = load_tokenizer(card)
@@ -119,9 +119,9 @@ def parity(model: PrunableCTC, fs2, audio: torch.Tensor, audio_lens: torch.Tenso
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--size", choices=sorted(SIZES), default="1b")
-    ap.add_argument("--out", type=Path, help="default: $SOTA_MODELS_DIR/<name>/<name>.sota.pt")
+    ap.add_argument("--out", type=Path, help="default: $KARNA_MODELS_DIR/<name>/<name>.karna.pt")
     ap.add_argument("--tol", type=float, default=1e-3)
-    ap.add_argument("--vocab", action="store_true", help="only re-export sota/vocab.json from the tokenizer")
+    ap.add_argument("--vocab", action="store_true", help="only re-export karna/vocab.json from the tokenizer")
     args = ap.parse_args()
     if args.vocab:
         vocab_from_fairseq2("omniASR_tokenizer_local").save(VOCAB_PATH)

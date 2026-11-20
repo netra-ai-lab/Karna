@@ -1,8 +1,8 @@
-"""Time inference of each fine-tuned teacher (0% sparsity) and SOTA model (80% sparsity).
+"""Time inference of each fine-tuned teacher (0% sparsity) and Karna model (80% sparsity).
 
     python scripts/07_time_inference.py [--seconds 60] [--runs 20] [--out runs/eval/components.json]
 
-Runs one utterance of ``--seconds`` audio through each model as ``sota.transcribe`` does
+Runs one utterance of ``--seconds`` audio through each model as ``karna.transcribe`` does
 (bf16 autocast on CUDA, batch 1) and records the median forward time over ``--runs`` runs,
 after warm-up. Compute does not depend on the audio content, so the input is noise.
 """
@@ -14,12 +14,12 @@ from pathlib import Path
 
 import torch
 
-import sota
-from sota.model import normalize_audio_
+import karna
+from karna.model import normalize_audio_
 
 # The training checkpoints the released models were exported from (logit diff 0); a hub name works too.
-MODELS = {"teacher-300m": "runs/base/stage1_finetune/teacher.pt", "sota-base": "runs/base/stage3_recover/latest.pt",
-          "teacher-1b": "runs/large/stage1_finetune/teacher.pt", "sota-large": "runs/large/stage3_recover/latest.pt"}
+MODELS = {"teacher-300m": "runs/base/stage1_finetune/teacher.pt", "karna-base": "runs/base/stage3_recover/latest.pt",
+          "teacher-1b": "runs/large/stage1_finetune/teacher.pt", "karna-large": "runs/large/stage3_recover/latest.pt"}
 
 
 class PartTimer:
@@ -37,7 +37,7 @@ class PartTimer:
 
 @torch.inference_mode()
 def time_model(source: str, seconds: float, runs: int) -> dict:
-    asr = sota.load_model(source, device="cuda")
+    asr = karna.load_model(source, device="cuda")
     model = asr.model
     timer = PartTimer(model, model)
     wav = torch.randn(1, int(16000 * seconds), device="cuda")

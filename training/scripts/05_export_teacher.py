@@ -3,7 +3,7 @@
     python scripts/05_export_teacher.py runs/base/stage1_finetune/teacher.pt runs/base/release/teacher --size 300m
 
 Writes:
-    model.safetensors + config.json   the weights for ``sota.load_model``
+    model.safetensors + config.json   the weights for ``karna.load_model``
     <name>.pt                         a fairseq2 checkpoint, a drop-in for the original omniASR one
     omniASR_tokenizer.model           the unchanged char tokenizer
     asset_card.yaml                   fairseq2 card for the two files above (paths to fill in)
@@ -24,11 +24,11 @@ import torch
 from safetensors.torch import save_file
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from sota.model import ArchConfig, PrunableCTC  # noqa: E402
-from sota_train import TOKENIZER, SIZES  # noqa: E402
-from sota_train.convert import parity  # noqa: E402
+from karna.model import ArchConfig, PrunableCTC  # noqa: E402
+from karna_train import TOKENIZER, SIZES  # noqa: E402
+from karna_train.convert import parity  # noqa: E402
 
-#: inverse of sota_train.convert.map_state_dict
+#: inverse of karna_train.convert.map_state_dict
 TO_FAIRSEQ2 = {
     "encoder_frontend.pos_conv.parametrizations.weight.original0": "encoder_frontend.pos_encoder.conv.weight_g",
     "encoder_frontend.pos_conv.parametrizations.weight.original1": "encoder_frontend.pos_encoder.conv.weight_v",

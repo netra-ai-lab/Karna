@@ -15,7 +15,7 @@ if [ -f local.env ]; then set -a; . ./local.env; set +a; fi
 
 SIZE=${1:-1b}
 case $SIZE in 1b) NAME=omniASR-CTC-1B ;; 300m) NAME=omniASR-CTC-300M ;; *) echo "size must be 1b or 300m"; exit 2 ;; esac
-MODELS=${SOTA_MODELS_DIR:-$PWD/pretrained}
+MODELS=${KARNA_MODELS_DIR:-$PWD/pretrained}
 LIBRI_DIR=${LIBRI_DIR:-$PWD/corpora/librispeech}
 MIRROR=${MIRROR:-https://www.openslr.org/resources/12}
 SUBSETS=${SUBSETS:-"dev-clean test-clean test-other train-clean-100 train-clean-360"}
@@ -29,7 +29,7 @@ fetch() {  # url dest
     mv "$2.part" "$2"
 }
 # a converted copy is all training needs; the original is only read once by the converter
-[ -e "$MODELS/$NAME/$NAME.sota.pt" ] || fetch "https://dl.fbaipublicfiles.com/mms/$NAME.pt" "$MODELS/$NAME/$NAME.pt"
+[ -e "$MODELS/$NAME/$NAME.karna.pt" ] || fetch "https://dl.fbaipublicfiles.com/mms/$NAME.pt" "$MODELS/$NAME/$NAME.pt"
 fetch "https://dl.fbaipublicfiles.com/mms/omniASR_tokenizer.model" "$MODELS/omniASR_tokenizer.model"
 
 for s in $SUBSETS; do

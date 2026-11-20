@@ -13,14 +13,14 @@ tags:
 - khmer
 ---
 
-# sota-large
+# karna-large
 
 A **204M-parameter** Khmer + English CTC speech recogniser, made by structured pruning of
 Meta's Omnilingual ASR `omniASR_CTC_1B` to **80% encoder sparsity**. It is the Large size of a pair,
 named after DiariZen's Base-s80 / Large-s80 pruned WavLM models. The other size is
-[Darayut/sota-base](https://huggingface.co/Darayut/sota-base).
+[Netra-Lab/karna-base](https://huggingface.co/Netra-Lab/karna-base).
 
-**Code:** [github.com/netra-ai-lab/Sota](https://github.com/netra-ai-lab/Sota), with the `sota` inference package and the full training recipe.
+**Code:** [github.com/netra-ai-lab/Karna](https://github.com/netra-ai-lab/Karna), with the `karna` inference package and the full training recipe.
 
 ## Results
 
@@ -30,30 +30,30 @@ Test sets; greedy CTC decoding, no language model. CER for Khmer, WER for Englis
 |---|---|---|---|---|---|---|---|
 | `omniASR_CTC_1B` (stock) | 975M | 50.3 | 5.95 | 11.26 | 12.38 | 4.40 | 8.87 |
 | [omniASR-CTC-1B-km-en](https://huggingface.co/Darayut/omniASR-CTC-1B-km-en) (fine-tuned teacher) | 975M | 50.3 | 2.47 | 9.44 | 11.94 | 3.61 | 8.21 |
-| **sota-large** | **204M** | **12.3** | **1.77** | **11.40** | **19.25** | **6.07** | **16.73** |
+| **karna-large** | **204M** | **12.3** | **1.77** | **11.40** | **19.25** | **6.07** | **16.73** |
 
 - **Khmer:** on DDD it is more accurate than both its unpruned fine-tuned teacher and the stock model.
 - **English:** it keeps much less of its teacher's accuracy, with about 1.5–2× the teacher's WER.
 - **In-domain test sets:** FLEURS-km and FLEURS-en train are in the training mix, so their test sets are in-domain.
 
-<p align="center"><img src="https://huggingface.co/Darayut/sota-large/resolve/main/assets/inference_time.png" width="60%" alt="Inference time for 60 s of audio at 0% and 80% encoder sparsity, for the base and large models"></p>
+<p align="center"><img src="https://huggingface.co/Netra-Lab/karna-large/resolve/main/assets/inference_time.png" width="60%" alt="Inference time for 60 s of audio at 0% and 80% encoder sparsity, for the base and large models"></p>
 
-*Inference time* for one 60 s utterance (batch 1, bf16, median of 20 runs), at 0% sparsity (the fine-tuned teacher) and 80% (SOTA).
+*Inference time* for one 60 s utterance (batch 1, bf16, median of 20 runs), at 0% sparsity (the fine-tuned teacher) and 80% (Karna).
 
 ## Architecture
 
-<p align="center"><img src="https://huggingface.co/Darayut/sota-large/resolve/main/assets/architecture.png" width="70%" alt="Sota's architecture, reading upwards from 16 kHz audio to the CTC head, with one transformer layer opened up"></p>
+<p align="center"><img src="https://huggingface.co/Netra-Lab/karna-large/resolve/main/assets/architecture.png" width="45%" alt="Karna's architecture, reading upwards from 16 kHz audio to the CTC head, with one transformer layer opened up"></p>
 
-*The model*, reading upwards, with one transformer layer opened up: 16 kHz audio, a feature extractor of 7 convolutional layers giving one frame every 20 ms, a convolutional position encoder added back to the frames, 48 pre-LayerNorm transformer layers of width 1,280, a final LayerNorm and a CTC head over 9,812 characters. Every attention head and every FFN unit has its own Hard Concrete gate z. The cells in the opened layer are layer 12 of sota-large: 8 of 16 heads and 3,355 of 5,120 FFN units kept; which ones are kept is schematic.
+*The model*, reading upwards, with one transformer layer opened up: 16 kHz audio, a feature extractor of 7 convolutional layers giving one frame every 20 ms, a convolutional position encoder added back to the frames, 48 pre-LayerNorm transformer layers of width 1,280, a final LayerNorm and a CTC head over 9,812 characters. Every attention head and every FFN unit has its own Hard Concrete gate z. The cells in the opened layer are layer 12 of karna-large: 8 of 16 heads and 3,355 of 5,120 FFN units kept; which ones are kept is schematic.
 
-<p align="center"><img src="https://huggingface.co/Darayut/sota-large/resolve/main/assets/pruning.png" width="100%" alt="The fine-tuned omniASR CTC-1B before structured pruning and sota-large after: CNN and CTC head kept, attention heads and FFN units removed"></p>
+<p align="center"><img src="https://huggingface.co/Netra-Lab/karna-large/resolve/main/assets/pruning.png" width="100%" alt="The fine-tuned omniASR CTC-1B before structured pruning and karna-large after: CNN and CTC head kept, attention heads and FFN units removed"></p>
 
-*What is pruned*, shown for sota-large: whole attention heads (MHA) and FFN units are removed from every transformer layer, and the CNN front end is kept. Each cell is a quarter of a layer's heads or units.
+*What is pruned*, shown for karna-large: whole attention heads (MHA) and FFN units are removed from every transformer layer, and the CNN front end is kept. Each cell is a quarter of a layer's heads or units.
 
 - **Base:** a wav2vec2-style CTC encoder with Omnilingual's 9,812-entry character vocabulary, which covers Khmer and Latin script.
 - **Pruned parts:** per-layer attention heads and FFN units, so every layer has its own width. `config.json` lists the exact `num_heads` and `ffn_dims`; the encoder has 191M parameters.
 - **Unchanged parts:** the CNN feature extractor and the output layer.
-- **Loading:** the layer widths are non-uniform, so fairseq2 / `omnilingual-asr` cannot load it. Use the `sota` package (see Usage) or the code bundled in this repo.
+- **Loading:** the layer widths are non-uniform, so fairseq2 / `omnilingual-asr` cannot load it. Use the `karna` package (see Usage) or the code bundled in this repo.
 
 ## How it was made
 
@@ -74,27 +74,27 @@ DPHuBERT (arXiv 2305.17651) as used in DiariZen.
 ## Usage
 
 ```bash
-pip install git+https://github.com/netra-ai-lab/SOTA
+pip install git+https://github.com/netra-ai-lab/Karna
 ```
 
 ```python
-import sota
+import karna
 
-asr = sota.load_model("sota-large")         # downloads this repo's weights once
+asr = karna.load_model("karna-large")         # downloads this repo's weights once
 print(asr.transcribe("audio.wav"))
 print(asr.transcribe(["a.wav", "b.flac"]))
 ```
 
 ```bash
-sota transcribe audio.wav --model sota-large
+karna transcribe audio.wav --model karna-large
 ```
 
 Without installing the package, the code bundled in this repo also works:
 
 ```bash
-huggingface-cli download Darayut/sota-large --local-dir sota-large
+huggingface-cli download Netra-Lab/karna-large --local-dir karna-large
 pip install torch torchaudio soundfile safetensors
-python sota-large/inference.py audio.wav
+python karna-large/inference.py audio.wav
 ```
 
 Audio of any sample rate is accepted; it is mixed to mono and resampled to 16 kHz. Output text is in the

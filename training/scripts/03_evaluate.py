@@ -16,11 +16,11 @@ from pathlib import Path
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from sota_train import ASR_ROOT, CACHE_DIR, PROJECT_ROOT  # noqa: E402
-from sota_train.data import load_eval_set  # noqa: E402
-from sota_train.evaluate import evaluate  # noqa: E402
-from sota.model import PrunableCTC, load_model  # noqa: E402
-from sota.text import CharVocab  # noqa: E402
+from karna_train import ASR_ROOT, CACHE_DIR, PROJECT_ROOT  # noqa: E402
+from karna_train.data import load_eval_set  # noqa: E402
+from karna_train.evaluate import evaluate  # noqa: E402
+from karna.model import PrunableCTC, load_model  # noqa: E402
+from karna.text import CharVocab  # noqa: E402
 
 SETS = {
     "ddd_dev": "data/ddd_dev.jsonl",

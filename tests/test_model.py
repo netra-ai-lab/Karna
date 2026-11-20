@@ -3,7 +3,7 @@ import copy
 import pytest
 import torch
 
-from sota.model import ArchConfig, PrunableCTC
+from karna.model import ArchConfig, PrunableCTC
 
 
 def tiny(vocab: int = 20, units: str = "head,interm,attlayer,ffnlayer") -> ArchConfig:

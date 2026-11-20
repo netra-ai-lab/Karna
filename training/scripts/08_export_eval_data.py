@@ -19,7 +19,7 @@ import pyarrow.parquet as pq
 import soundfile as sf
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from sota_train import ASR_ROOT, PROJECT_ROOT  # noqa: E402
+from karna_train import ASR_ROOT, PROJECT_ROOT  # noqa: E402
 
 SETS = ["ddd_dev", "ddd_test", "fleurs_km_dev", "fleurs_km_test", "fleurs_en_dev", "fleurs_en_test",
         "libri_dev-clean", "libri_test-clean", "libri_test-other"]
@@ -41,10 +41,10 @@ language:
 configs:
 {configs}
 ---
-# SOTA evaluation sets
+# Karna evaluation sets
 
 The nine sets that `training/scripts/03_evaluate.py` scores in
-the SOTA repo, one parquet file each. Audio is stored as the original
+the Karna repo, one parquet file each. Audio is stored as the original
 encoded bytes (DDD and FLEURS: wav, LibriSpeech: flac); `text` is the reference exactly as
 scored.
 
@@ -105,7 +105,7 @@ def main() -> None:
         api = HfApi()
         api.create_repo(args.push, repo_type="dataset", private=not args.public, exist_ok=True)
         api.upload_folder(repo_id=args.push, repo_type="dataset", folder_path=str(args.out),
-                          commit_message="Add SOTA evaluation sets")
+                          commit_message="Add Karna evaluation sets")
         print("pushed", args.push)
 
 

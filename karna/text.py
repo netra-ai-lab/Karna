@@ -22,7 +22,7 @@ BLANK = 0  # fairseq2's ctc_loss uses the default blank, index 0 (<s>)
 SPECIAL = {0, 1, 2, 3}  # <s>, <pad>, </s>, <unk>
 UNK = 3
 SPACE_PIECE = "▁"
-#: ``omniASR_tokenizer``'s pieces in id order, exported once with ``sota_train.convert.vocab_from_fairseq2``
+#: ``omniASR_tokenizer``'s pieces in id order, exported once with ``karna_train.convert.vocab_from_fairseq2``
 VOCAB_PATH = Path(__file__).with_name("vocab.json")
 
 _ZERO_WIDTH = re.compile("[​‌‍⁠﻿]")
@@ -49,7 +49,7 @@ class CharVocab:
 
     @classmethod
     def default(cls) -> CharVocab:
-        """The Omnilingual vocabulary shipped with this package (``sota/vocab.json``)."""
+        """The Omnilingual vocabulary shipped with this package (``karna/vocab.json``)."""
         return cls.load(VOCAB_PATH)
 
     def save(self, path: Path) -> None:

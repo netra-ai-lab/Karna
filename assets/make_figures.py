@@ -41,10 +41,10 @@ def results() -> None:
     groups = [
         ("Large: from omniASR CTC-1B", [("Stock 1B · 975M", scores("stock_1b", "stock_1b_fleurs"), BASELINES[3]),
                                          ("Fine-tuned 1B · 975M", scores("large_teacher"), BASELINES[0]),
-                                         ("sota-large · 204M", scores("large"), None)]),
+                                         ("karna-large · 204M", scores("large"), None)]),
         ("Base: from omniASR CTC-300M", [("Stock 300M · 325M", scores("stock_300m"), BASELINES[3]),
                                           ("Fine-tuned 300M · 325M", scores("base_teacher"), BASELINES[0]),
-                                          ("sota-base · 73M", scores("base"), None)]),
+                                          ("karna-base · 73M", scores("base"), None)]),
     ]
     fig, axes = plt.subplots(1, 2, figsize=(13, 4.4), sharey=True)
     x = np.arange(len(TESTS)) * 1.6
@@ -78,7 +78,7 @@ def layers() -> None:
         colors = [OURS if i in distilled else BASELINES[3] for i in idx]
         ffn_ax, head_ax = axes[0, col], axes[1, col]
         ffn_ax.bar(idx, p["ffn_dims"], 0.75, color=colors, zorder=3)
-        ffn_ax.set_title(f"sota-{size}: {p['encoder_params_after'] / 1e6:.0f}M of {p['encoder_params_before'] / 1e6:.0f}M "
+        ffn_ax.set_title(f"karna-{size}: {p['encoder_params_after'] / 1e6:.0f}M of {p['encoder_params_before'] / 1e6:.0f}M "
                          f"encoder parameters kept ({100 * p['sparsity']:.0f}% pruned)", loc="left", fontsize=11)
         ffn_ax.set_ylabel(f"FFN units (of {full_ffn:,})")
         head_ax.bar(idx, p["num_heads"], 0.75, color=colors, zorder=3)
@@ -172,7 +172,7 @@ def pruning() -> None:
     ax.text(left + 11.5, y0 + col_h / 2 + 1.2, "Pruning", ha="center", va="bottom", fontsize=12, color=ink)
     ax.text(left + 11.5, y0 + col_h / 2 - 1.2, f"{100 * p['sparsity']:.0f}% of encoder\nweights removed",
             ha="center", va="top", fontsize=9.5, color=COLOR["muted"])
-    right = model(left + 23, True, f"sota-large · {p['params_total_after'] / 1e6:.0f}M")
+    right = model(left + 23, True, f"karna-large · {p['params_total_after'] / 1e6:.0f}M")
 
     lx = right + 4.5
     for k, (kind, label) in enumerate([("cnn", "CNN"), ("mha", "MHA heads"), ("ffn", "FFN units")]):
@@ -189,7 +189,7 @@ def inference_time() -> None:
     """Figure 2: inference time at 0% and 80% encoder sparsity (training/scripts/07_time_inference.py)."""
     t = json.loads((RUNS / "eval" / "inference_time.json").read_text())
     m = t["models"]
-    groups = [("Base", "teacher-300m", "sota-base"), ("Large", "teacher-1b", "sota-large")]
+    groups = [("Base", "teacher-300m", "karna-base"), ("Large", "teacher-1b", "karna-large")]
     fig, ax = plt.subplots(figsize=(7, 4.8))
     w = 0.32
     for g, (label, dense, sparse) in enumerate(groups):
@@ -206,7 +206,7 @@ def inference_time() -> None:
     ax.set_ylim(0, max(v["ms"] for v in m.values()) * 1.2)
     ax.set_ylabel(f"Inference time for {t['audio_seconds']:.0f} s of audio (ms)")
     ax.legend(handles=[legend_dot(BASELINES[0], "sparsity = 0% (fine-tuned teacher)"),
-                       legend_dot(OURS, "sparsity = 80% (SOTA)")], loc="upper left", fontsize=10)
+                       legend_dot(OURS, "sparsity = 80% (Karna)")], loc="upper left", fontsize=10)
     fig.savefig(HERE / "inference_time.png")
     plt.close(fig)
 

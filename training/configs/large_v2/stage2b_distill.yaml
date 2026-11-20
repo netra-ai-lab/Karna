@@ -1,6 +1,6 @@
-# sota-large v2: the 1B chain on the v2 recipe of configs/base_v2/ (full-pass Stage 1, 960 h of
+# karna-large v2: the 1B chain on the v2 recipe of configs/base_v2/ (full-pass Stage 1, 960 h of
 # LibriSpeech, slower sparsity ramp, longer recovery), from configs/large/ for the 1B-specific settings.
-# omniASR CTC-1B (sota-large, 48 layers, dim 1280)
+# omniASR CTC-1B (karna-large, 48 layers, dim 1280)
 # Stage 2b: distillation continues on the physically pruned student (scripts/04_apply_pruning.py)
 # with the mask frozen (DiariZen's "continue with frozen mask").
 stage: distill

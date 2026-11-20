@@ -36,7 +36,7 @@ import soundfile as sf
 import torch
 from torch.utils.data import DataLoader, IterableDataset, get_worker_info
 
-from sota.text import CharVocab, normalize_text
+from karna.text import CharVocab, normalize_text
 
 from . import ASR_ROOT
 
@@ -122,7 +122,7 @@ def ctc_usable(n_samples: int, n_target: int) -> bool:
 class DataConfig:
     ddd_units: str = "data/ddd_units.json"
     libri_train: str = "data/libri_train.jsonl"
-    vocab: str | None = None  # a vocab.json; None = the one shipped with sota
+    vocab: str | None = None  # a vocab.json; None = the one shipped with karna
     en_fraction: float = 0.5  # share of audio seconds from LibriSpeech
     fleurs_km_units: str | None = None  # {shard: [rows]} like ddd_units, repeated as needed
     fleurs_en_train: str | None = None  # JSONL like libri_train, repeated as needed

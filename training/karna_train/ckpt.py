@@ -94,5 +94,5 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) != 4 or sys.argv[1] != "export-weights":
-        raise SystemExit("usage: python -m sota_train.ckpt export-weights <latest.pt> <out.pt>")
+        raise SystemExit("usage: python -m karna_train.ckpt export-weights <latest.pt> <out.pt>")
     export_weights(Path(sys.argv[2]), Path(sys.argv[3]))

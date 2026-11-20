@@ -9,8 +9,8 @@
 # and the conv stack is a small share of the parameters (docs/DESIGN.md).
 stage: prune
 run_dir: runs/experiments/a_prune_from_stock/stage2_prune_s80
-init: ${SOTA_MODELS_DIR}/omniASR-CTC-1B/omniASR-CTC-1B.sota.pt
-teacher: ${SOTA_MODELS_DIR}/omniASR-CTC-1B/omniASR-CTC-1B.sota.pt
+init: ${KARNA_MODELS_DIR}/omniASR-CTC-1B/omniASR-CTC-1B.karna.pt
+teacher: ${KARNA_MODELS_DIR}/omniASR-CTC-1B/omniASR-CTC-1B.karna.pt
 seed: 1234
 
 model:

@@ -1,6 +1,6 @@
-# sota-base v2: the base chain with a full-pass Stage 1, 960 h of LibriSpeech and a longer recovery
+# karna-base v2: the base chain with a full-pass Stage 1, 960 h of LibriSpeech and a longer recovery
 # (docs/DESIGN.md §4). Output distillation from the 1B was tried and dropped (docs/RESULTS.md §6).
-# omniASR CTC-300M (sota-base, 24 layers, dim 1024)
+# omniASR CTC-300M (karna-base, 24 layers, dim 1024)
 # Stage 2b: distillation continues on the physically pruned student (scripts/04_apply_pruning.py)
 # with the mask frozen (DiariZen's "continue with frozen mask").
 stage: distill

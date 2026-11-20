@@ -1,10 +1,10 @@
-# omniASR CTC-1B (sota-large, 48 layers, dim 1280)
+# omniASR CTC-1B (karna-large, 48 layers, dim 1280)
 # Stage 1: CTC fine-tune of the full 1B on DDD + FLEURS-km / LibriSpeech + FLEURS-en.
 # The result (teacher.pt) is both the starting point and the teacher of the pruning
 # (fine-tune before structured pruning, arXiv 2505.24111).
 stage: finetune
 run_dir: runs/large/stage1_finetune
-init: ${SOTA_MODELS_DIR}/omniASR-CTC-1B/omniASR-CTC-1B.sota.pt
+init: ${KARNA_MODELS_DIR}/omniASR-CTC-1B/omniASR-CTC-1B.karna.pt
 seed: 1234
 
 model:

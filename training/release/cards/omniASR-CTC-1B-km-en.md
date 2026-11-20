@@ -21,7 +21,7 @@ This is the Stage 1 model of a structured-pruning study (fine-tune first, then p
 sparsity with distillation, following *Fine-tune Before Structured Pruning*, arXiv 2505.24111).
 It serves as the teacher and starting point for the pruned models.
 
-**Code:** [github.com/netra-ai-lab/Sota](https://github.com/netra-ai-lab/Sota).
+**Code:** [github.com/netra-ai-lab/Karna](https://github.com/netra-ai-lab/Karna).
 
 ## Results
 
@@ -60,16 +60,16 @@ FLEURS-km and FLEURS-en train splits are in the training mix, so their test sets
 The fairseq2 checkpoint was verified by reloading it with fairseq2 and comparing logits
 against the training model: the maximum difference was exactly zero.
 
-## Usage (sota)
+## Usage (karna)
 
 ```bash
-pip install git+https://github.com/netra-ai-lab/SOTA
+pip install git+https://github.com/netra-ai-lab/Karna
 ```
 
 ```python
-import sota
+import karna
 
-asr = sota.load_model("teacher-1b")      # downloads this repo's weights once
+asr = karna.load_model("teacher-1b")      # downloads this repo's weights once
 print(asr.transcribe("audio.wav"))
 ```
 

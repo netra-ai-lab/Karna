@@ -1,4 +1,4 @@
-# omniASR CTC-300M (sota-base, 24 layers, dim 1024)
+# omniASR CTC-300M (karna-base, 24 layers, dim 1024)
 # Stage 2: structured pruning of the fine-tuned 300M to 80% sparsity (DPHuBERT / DiariZen recipe).
 #   student = teacher = `init` (the Stage 1 model)
 #   loss    = mean over distill_layers of (L1 - cosine) to the frozen teacher

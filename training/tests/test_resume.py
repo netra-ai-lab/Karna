@@ -7,9 +7,9 @@ import pytest
 import torch
 import yaml
 
-from sota_train import ASR_ROOT, PROJECT_ROOT
-from sota.model import ArchConfig, PrunableCTC
-from sota_train.train import Trainer, load_config
+from karna_train import ASR_ROOT, PROJECT_ROOT
+from karna.model import ArchConfig, PrunableCTC
+from karna_train.train import Trainer, load_config
 
 pytestmark = pytest.mark.skipif(
     not torch.cuda.is_available() or not (PROJECT_ROOT / "data/ddd_units.json").exists() or not ASR_ROOT.exists(),

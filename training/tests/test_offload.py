@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from sota_train.offload import CPUOffloadAdamW
+from karna_train.offload import CPUOffloadAdamW
 
 cuda = pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
 

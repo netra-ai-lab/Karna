@@ -11,7 +11,7 @@ import torch
 
 SAMPLE_RATE = 16000
 
-#: what ``SOTA.transcribe`` accepts per utterance: a path, a 16 kHz waveform, or (waveform, sample_rate)
+#: what ``Karna.transcribe`` accepts per utterance: a path, a 16 kHz waveform, or (waveform, sample_rate)
 AudioInput = Union[str, Path, np.ndarray, torch.Tensor, tuple]
 
 

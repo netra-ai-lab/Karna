@@ -1,4 +1,4 @@
-"""The ``SOTA`` speech recogniser: load a model, transcribe audio (greedy CTC, no language model)."""
+"""The ``Karna`` speech recogniser: load a model, transcribe audio (greedy CTC, no language model)."""
 
 from __future__ import annotations
 
@@ -12,10 +12,10 @@ from .model import ArchConfig, PrunableCTC, normalize_audio_
 from .text import CharVocab
 
 
-class SOTA:
+class Karna:
     """A Khmer + English CTC model with its vocabulary.
 
-    >>> asr = SOTA.from_pretrained("sota-base")
+    >>> asr = Karna.from_pretrained("karna-base")
     >>> asr.transcribe("speech.wav")
     """
 
@@ -27,7 +27,7 @@ class SOTA:
         self.vocab = vocab
 
     @classmethod
-    def from_pretrained(cls, name_or_path: str | Path = DEFAULT_MODEL, device: str | torch.device | None = None) -> SOTA:
+    def from_pretrained(cls, name_or_path: str | Path = DEFAULT_MODEL, device: str | torch.device | None = None) -> Karna:
         arch, state, vocab_path = load_weights(resolve(name_or_path))
         model = PrunableCTC(ArchConfig.from_dict(arch))
         model.load_state_dict(state)
@@ -67,10 +67,10 @@ class SOTA:
         return texts[0] if single else texts
 
 
-def load_model(name_or_path: str | Path = DEFAULT_MODEL, device: str | torch.device | None = None) -> SOTA:
-    """``SOTA.from_pretrained``: a short name (``sota-base``, ``sota-large``, ``teacher-300m``,
+def load_model(name_or_path: str | Path = DEFAULT_MODEL, device: str | torch.device | None = None) -> Karna:
+    """``Karna.from_pretrained``: a short name (``karna-base``, ``karna-large``, ``teacher-300m``,
     ``teacher-1b``), a Hugging Face repo id, a release folder or a training checkpoint."""
-    return SOTA.from_pretrained(name_or_path, device)
+    return Karna.from_pretrained(name_or_path, device)
 
 
 def transcribe(audio: AudioInput | list[AudioInput], model: str | Path = DEFAULT_MODEL,

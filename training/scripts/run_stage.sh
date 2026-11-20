@@ -26,7 +26,7 @@ trap on_term TERM INT
 crashes=0
 while [ "$stop_requested" -eq 0 ]; do
     echo "=== $(date '+%F %T') launching $CONFIG $* (crashes in a row: $crashes)" | tee -a "$LOG"
-    "$PY" -m sota_train.train "$CONFIG" "$@" >>"$LOG" 2>&1 &
+    "$PY" -m karna_train.train "$CONFIG" "$@" >>"$LOG" 2>&1 &
     child=$!
     wait "$child"; rc=$?
     # wait returns early when a trapped signal arrives; wait again for the real exit code

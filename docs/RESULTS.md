@@ -8,10 +8,10 @@ Greedy CTC decoding with no language model. CER is used for Khmer and WER for En
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | omniASR CTC-1B (stock) | 975M | 50.3 | 5.95 | 11.26 | 12.38 | 4.40 | 8.87 |
 | Fine-tuned 1B (teacher) | 975M | 50.3 | 2.47 | 9.44 | 11.94 | 3.61 | 8.21 |
-| **sota-large** | **204M** | **12.3** | **1.77** | **11.40** | **19.25** | **6.07** | **16.73** |
+| **karna-large** | **204M** | **12.3** | **1.77** | **11.40** | **19.25** | **6.07** | **16.73** |
 | omniASR CTC-300M (stock) | 325M | 18.3 | 9.65 | 16.26 | – | 6.53 | 14.45 |
 | Fine-tuned 300M (teacher) | 325M | 18.3 | 3.68 | 12.64 | 19.51 | 5.89 | 13.86 |
-| **sota-base** | **73M** | **5.8** | **2.60** | **16.39** | **30.24** | **11.15** | **27.36** |
+| **karna-base** | **73M** | **5.8** | **2.60** | **16.39** | **30.24** | **11.15** | **27.36** |
 
 **Test sets:**
 
@@ -32,7 +32,7 @@ FLEURS train is in the training mix, so the two FLEURS test sets are in-domain. 
 | A | prune the stock 1B, no Stage 1, no FLEURS | 2.20 | 16.36 | 28.07 | 6.56 | 18.26 |
 | B1 | fine-tune first, Stage 3 CTC only (8k) | 2.14 | 12.51 | 21.16 | 7.07 | 18.51 |
 | B2 | + logit KD in Stage 3 (8k) | 2.09 | 11.90 | 19.62 | 6.47 | 17.42 |
-| **B3** (sota-large) | + Stage 3 for 16k steps | **1.77** | **11.40** | **19.25** | **6.07** | **16.73** |
+| **B3** (karna-large) | + Stage 3 for 16k steps | **1.77** | **11.40** | **19.25** | **6.07** | **16.73** |
 
 A → B changes two things at once: the teacher (stock vs fine-tuned) and the data (FLEURS added). Their effects are not separated.
 
@@ -80,7 +80,7 @@ Dev sets:
 
 The two languages are mixed 50/50 by audio seconds.
 
-## 6. sota-base v2, first attempt: output distillation (dropped)
+## 6. karna-base v2, first attempt: output distillation (dropped)
 
 The first v2 chain used two teachers:
 - the 300M fine-tune for hidden states;

@@ -1,6 +1,6 @@
-# sota-large v2: the 1B chain on the v2 recipe of configs/base_v2/ (full-pass Stage 1, 960 h of
+# karna-large v2: the 1B chain on the v2 recipe of configs/base_v2/ (full-pass Stage 1, 960 h of
 # LibriSpeech, slower sparsity ramp, longer recovery), from configs/large/ for the 1B-specific settings.
-# omniASR CTC-1B (sota-large, 48 layers, dim 1280)
+# omniASR CTC-1B (karna-large, 48 layers, dim 1280)
 # Stage 2: structured pruning of the fine-tuned 1B to 80% sparsity (DPHuBERT / DiariZen recipe).
 #   student = teacher = `init` (the Stage 1 model)
 #   loss    = mean over distill_layers of (L1 - cosine) to the frozen teacher

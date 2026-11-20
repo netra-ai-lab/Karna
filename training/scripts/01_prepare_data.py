@@ -34,7 +34,7 @@ import pyarrow.parquet as pq
 import soundfile as sf
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from sota_train import ASR_ROOT, FLEURS_EN_DIR, LIBRI_ROOT, PROJECT_ROOT  # noqa: E402
+from karna_train import ASR_ROOT, FLEURS_EN_DIR, LIBRI_ROOT, PROJECT_ROOT  # noqa: E402
 
 OUT = PROJECT_ROOT / "data"
 FLEURS_EN_ROOT = FLEURS_EN_DIR

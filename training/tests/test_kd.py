@@ -6,8 +6,8 @@ import json
 import pytest
 import torch
 
-from sota.model import ArchConfig, PrunableCTC
-from sota_train.train import Trainer, kd_loss, load_config
+from karna.model import ArchConfig, PrunableCTC
+from karna_train.train import Trainer, kd_loss, load_config
 from test_resume import pytestmark as needs_cuda_and_data
 from test_resume import tiny_ckpt, write_cfg
 

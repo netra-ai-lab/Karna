@@ -1,13 +1,13 @@
-# sota-base v2: the base chain with a full-pass Stage 1, 960 h of LibriSpeech and a longer recovery
+# karna-base v2: the base chain with a full-pass Stage 1, 960 h of LibriSpeech and a longer recovery
 # (docs/DESIGN.md §4). Output distillation from the 1B was tried and dropped (docs/RESULTS.md §6).
-# omniASR CTC-300M (sota-base, 24 layers, dim 1024)
+# omniASR CTC-300M (karna-base, 24 layers, dim 1024)
 # Stage 1: CTC fine-tune of the full 300M on DDD + FLEURS-km / LibriSpeech 960 h + FLEURS-en, for one full
 # pass over the mix (~2,520 h with FLEURS at 20%, ~147 s of audio per step -> ~62k steps; v1 ran 6k).
 # The result (teacher.pt) is both the starting point and the teacher of the pruning
 # (fine-tune before structured pruning, arXiv 2505.24111).
 stage: finetune
 run_dir: runs/base_v2/stage1_finetune
-init: ${SOTA_MODELS_DIR}/omniASR-CTC-300M/omniASR-CTC-300M.sota.pt
+init: ${KARNA_MODELS_DIR}/omniASR-CTC-300M/omniASR-CTC-300M.karna.pt
 seed: 1234
 
 model:

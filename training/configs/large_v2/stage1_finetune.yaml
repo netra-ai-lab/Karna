@@ -1,12 +1,12 @@
-# sota-large v2: the 1B re-fine-tuned on the full v2 mix; stages 2-3 follow in this folder.
-# omniASR CTC-1B (sota-large, 48 layers, dim 1280)
+# karna-large v2: the 1B re-fine-tuned on the full v2 mix; stages 2-3 follow in this folder.
+# omniASR CTC-1B (karna-large, 48 layers, dim 1280)
 # Stage 1: CTC fine-tune of the full 1B on DDD + FLEURS-km / LibriSpeech 960 h + FLEURS-en, for one full
 # pass over the mix (~62k steps, as configs/base_v2/stage1_finetune.yaml; v1 ran 6k).
 # The result (teacher.pt) is both the starting point and the teacher of the pruning
 # (fine-tune before structured pruning, arXiv 2505.24111).
 stage: finetune
 run_dir: runs/large_v2/stage1_finetune
-init: ${SOTA_MODELS_DIR}/omniASR-CTC-1B/omniASR-CTC-1B.sota.pt
+init: ${KARNA_MODELS_DIR}/omniASR-CTC-1B/omniASR-CTC-1B.karna.pt
 seed: 1234
 
 model:

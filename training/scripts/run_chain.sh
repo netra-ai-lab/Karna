@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The full SOTA recipe for one model size, after scripts/00-02 (see run.sh):
+# The full Karna recipe for one model size, after scripts/00-02 (see run.sh):
 #   Stage 1 CTC fine-tune (the teacher) -> teacher.pt -> Stage 2 prune to 80% sparsity ->
 #   cut (04_apply_pruning) -> Stage 2b distil with the mask frozen -> Stage 3 CTC + logit KD ->
 #   test-set scores for the pruned model and the teacher (runs/eval/<size>{,_teacher}.json).
@@ -44,7 +44,7 @@ stage stage1_finetune
 
 if [ ! -f "$R/stage1_finetune/teacher.pt" ]; then
     log "export stage 1 weights -> teacher.pt"
-    run "$PY" -m sota_train.ckpt export-weights "$R/stage1_finetune/latest.pt" "$R/stage1_finetune/teacher.pt"
+    run "$PY" -m karna_train.ckpt export-weights "$R/stage1_finetune/latest.pt" "$R/stage1_finetune/teacher.pt"
 fi
 
 stage stage2_prune_s80

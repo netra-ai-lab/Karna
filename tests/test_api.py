@@ -5,10 +5,10 @@ import pytest
 import torch
 from safetensors.torch import save_file
 
-import sota
-from sota.audio import load_audio
-from sota.model import ArchConfig, PrunableCTC
-from sota.text import CharVocab
+import karna
+from karna.audio import load_audio
+from karna.model import ArchConfig, PrunableCTC
+from karna.text import CharVocab
 
 
 def tiny_release(tmp_path, vocab_size=None):
@@ -27,7 +27,7 @@ def tiny_release(tmp_path, vocab_size=None):
 
 def test_release_folder_round_trip(tmp_path):
     ref = tiny_release(tmp_path)
-    asr = sota.load_model(tmp_path, device="cpu")
+    asr = karna.load_model(tmp_path, device="cpu")
     assert asr.num_parameters == sum(p.numel() for p in ref.parameters())
     x, lens = torch.randn(1, 8000), torch.tensor([8000])
     with torch.no_grad():
@@ -37,7 +37,7 @@ def test_release_folder_round_trip(tmp_path):
 
 def test_batched_equals_one_by_one(tmp_path):
     tiny_release(tmp_path)
-    asr = sota.load_model(tmp_path, device="cpu")
+    asr = karna.load_model(tmp_path, device="cpu")
     rng = np.random.default_rng(0)
     clips = [rng.standard_normal(n).astype(np.float32) * 0.1 for n in (16000, 5000, 11000)]
     batched = asr.transcribe(clips, batch_size=3)
@@ -57,13 +57,13 @@ def test_load_audio_files_and_rates(tmp_path):
 
 def test_unknown_short_name_is_rejected():
     with pytest.raises(ValueError, match="unknown model"):
-        sota.load_model("not-a-model")
+        karna.load_model("not-a-model")
 
 
 def test_import_stays_light():
     import subprocess
     import sys
 
-    code = "import sys, sota; print(','.join(m for m in ('fairseq2', 'yaml', 'pyarrow', 'sota_train') if m in sys.modules))"
+    code = "import sys, karna; print(','.join(m for m in ('fairseq2', 'yaml', 'pyarrow', 'karna_train') if m in sys.modules))"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip()
     assert out == ""

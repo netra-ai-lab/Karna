@@ -1,6 +1,6 @@
 """One trainer for every stage: CTC fine-tuning, pruning (distillation + L0), mask-frozen distillation.
 
-    python -m sota_train.train configs/stage2_prune_s80.yaml [--set optim.max_steps=50 ...]
+    python -m karna_train.train configs/stage2_prune_s80.yaml [--set optim.max_steps=50 ...]
 
 Stages (see README):
   finetune  CTC loss on the DDD + LibriSpeech mix (stage 1 teacher adaptation, stage 3 recovery)
@@ -43,9 +43,9 @@ from . import CACHE_DIR, PROJECT_ROOT
 from .ckpt import atomic_save, git_commit, load as load_ckpt, release_host_memory, rng_state, set_rng_state
 from .data import Batch, DataConfig, load_eval_set, make_train_loader
 from .evaluate import evaluate
-from sota.model import ArchConfig, PrunableCTC, normalize_audio_
+from karna.model import ArchConfig, PrunableCTC, normalize_audio_
 from .offload import CPUOffloadAdamW, GPUAdamW
-from sota.text import BLANK, CharVocab
+from karna.text import BLANK, CharVocab
 
 EXIT_SIGNAL = 3
 
@@ -139,7 +139,7 @@ def load_config(path: Path, overrides: list[str]) -> dict:
         node[parts[-1]] = yaml.safe_load(val)
     if cfg["run_dir"] is None:
         cfg["run_dir"] = f"runs/{path.stem}"
-    for key in ("init", "teacher"):  # ${SOTA_MODELS_DIR}/... in the stock-checkpoint configs
+    for key in ("init", "teacher"):  # ${KARNA_MODELS_DIR}/... in the stock-checkpoint configs
         if cfg[key]:
             cfg[key] = os.path.expandvars(cfg[key])
     if cfg["kd"]["teacher"]:
