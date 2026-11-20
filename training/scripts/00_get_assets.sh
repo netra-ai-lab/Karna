@@ -2,6 +2,7 @@
 # Fetch a stock Omnilingual CTC checkpoint + the char tokenizer, and the LibriSpeech subsets.
 #
 #   scripts/00_get_assets.sh [1b|300m]        # default 1b
+#   SUBSETS=train-other-500 scripts/00_get_assets.sh 300m   # the extra 500 h of configs/base_v2
 #
 # LibriSpeech tarballs are streamed straight into tar, so the archive never lands
 # on disk: train-clean-360 alone is 23 GB. A subset counts as done only once its

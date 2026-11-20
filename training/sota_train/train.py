@@ -11,6 +11,10 @@ Stages (see README):
             multipliers ascend (their gradient is negated).
   distill   distillation only, on an already-pruned (gate-free) student (stage 2b).
 
+Logit KD (``kd.weight`` > 0) works in every stage. Its teacher is ``kd.teacher`` if set, else
+``teacher``: a larger model with the same vocabulary and frame rate (the fine-tuned 1B for a
+300M student) can supervise the outputs while ``teacher`` anchors the hidden states.
+
 Resumable: ``latest.pt`` in ``save.dir`` (default: the run directory) is written every
 ``save.every_steps`` steps or ``save.every_minutes`` minutes, whichever comes first, on
 SIGINT/SIGTERM (after the current step), on a crash outside the optimizer step, and at the end.
@@ -82,9 +86,11 @@ DEFAULTS: dict = {
         "ctc_weight": 0.0,  # optional CTC term on top of distillation
         "mask_snapshots": True,
     },
-    "kd": {  # finetune: CTC + weight * frame-level KL to the teacher's output distribution
+    "kd": {  # + weight * frame-level KL to the teacher's output distribution (any stage)
         "weight": 0.0,
         "temperature": 1.0,
+        "teacher": None,  # output teacher; None = ``teacher``. Same vocabulary and frame rate as the student
+        "ctc_weight": 1.0,  # finetune: weight of the CTC term
     },
     "data": {},
     "eval": {
@@ -136,18 +142,21 @@ def load_config(path: Path, overrides: list[str]) -> dict:
     for key in ("init", "teacher"):  # ${SOTA_MODELS_DIR}/... in the stock-checkpoint configs
         if cfg[key]:
             cfg[key] = os.path.expandvars(cfg[key])
+    if cfg["kd"]["teacher"]:
+        cfg["kd"]["teacher"] = os.path.expandvars(cfg["kd"]["teacher"])
     if cfg["stage"] not in ("finetune", "prune", "distill"):
         raise ValueError(f"unknown stage {cfg['stage']}")
     if cfg["stage"] in ("prune", "distill") and not cfg["teacher"]:
         raise ValueError(f"stage {cfg['stage']} needs a teacher checkpoint")
-    if cfg["kd"]["weight"] > 0 and (cfg["stage"] != "finetune" or not cfg["teacher"]):
-        raise ValueError("kd.weight > 0 needs stage finetune and a teacher checkpoint")
+    if cfg["kd"]["weight"] > 0 and not (cfg["kd"]["teacher"] or cfg["teacher"]):
+        raise ValueError("kd.weight > 0 needs a teacher checkpoint (kd.teacher or teacher)")
     return cfg
 
 
 #: config keys that define *what* is being trained; a resume refuses to continue if any changed
 IDENTITY_KEYS = ["stage", "init", "teacher", "seed", "model.pruning_units", "model.precision",
-                 "prune.target_sparsity", "prune.distill_layers", "data.en_fraction", "kd.weight"]
+                 "prune.target_sparsity", "prune.distill_layers", "data.en_fraction", "kd.weight", "kd.teacher",
+                 "kd.ctc_weight"]
 
 
 def get_key(cfg: dict, key: str):
@@ -246,8 +255,8 @@ def build_student(cfg: dict, device: torch.device) -> tuple[PrunableCTC, dict | 
     return model, ck
 
 
-def build_teacher(cfg: dict, device: torch.device) -> PrunableCTC:
-    ck = load_ckpt(Path(cfg["teacher"]))
+def build_teacher(path: str, device: torch.device) -> PrunableCTC:
+    ck = load_ckpt(Path(path))
     t = PrunableCTC(ArchConfig.from_dict(ck["arch"]))
     t.load_state_dict(ck["model"])
     t.to(device=device, dtype=torch.bfloat16).eval()
@@ -278,7 +287,12 @@ class Trainer:
         self.stage = cfg["stage"]
         self.model, _ = build_student(cfg, self.device)
         self.kd_weight = cfg["kd"]["weight"]
-        self.teacher = build_teacher(cfg, self.device) if self.stage in ("prune", "distill") or self.kd_weight > 0 else None
+        kd_teacher = cfg["kd"]["teacher"]
+        need_teacher = self.stage in ("prune", "distill") or (self.kd_weight > 0 and not kd_teacher)
+        self.teacher = build_teacher(cfg["teacher"], self.device) if need_teacher else None
+        self.kd_teacher = None  # the logit-KD teacher: ``self.teacher`` itself unless kd.teacher is set
+        if self.kd_weight > 0:
+            self.kd_teacher = build_teacher(kd_teacher, self.device) if kd_teacher else self.teacher
         self.layers = list(cfg["prune"]["distill_layers"])
         n_layers = self.model.cfg.num_layers
         if self.stage in ("prune", "distill") and max(self.layers) > n_layers:
@@ -424,24 +438,33 @@ class Trainer:
         offload = self.cfg["model"]["precision"] == "offload"
         dtype = torch.bfloat16 if offload else torch.float32
         want_ctc = self.stage == "finetune" or self.cfg["prune"]["ctc_weight"] > 0
+        kd_from_teacher = self.kd_teacher is not None and self.kd_teacher is self.teacher
         hidden = self.layers if self.stage in ("prune", "distill") else None
         stats: dict = {}
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=not offload):
-            out = self.model(audio.to(dtype), lens, hidden_layers=hidden, return_logits=want_ctc)
+            out = self.model(audio.to(dtype), lens, hidden_layers=hidden, return_logits=want_ctc or self.kd_weight > 0)
             loss = torch.zeros((), device=self.device)
             if want_ctc:
                 ctc, ntok = ctc_loss(out["logits"], out["frame_lens"], b)
                 ctc = ctc / max(ntok, 1)
                 stats["ctc"] = _f(ctc)
-                loss = loss + (ctc if self.stage == "finetune" else self.cfg["prune"]["ctc_weight"] * ctc)
+                w = self.cfg["kd"]["ctc_weight"] if self.stage == "finetune" else self.cfg["prune"]["ctc_weight"]
+                loss = loss + w * ctc
             if self.teacher is not None:
                 with torch.no_grad():
                     tout = self.teacher(audio.to(torch.bfloat16), lens, hidden_layers=hidden,
-                                        return_logits=self.kd_weight > 0)
+                                        return_logits=kd_from_teacher)
             if self.kd_weight > 0:
+                if kd_from_teacher:
+                    t_logits = tout["logits"]
+                else:
+                    with torch.no_grad():
+                        t_logits = self.kd_teacher(audio.to(torch.bfloat16), lens, return_logits=True)["logits"]
                 t = out["logits"].shape[1]
+                if t_logits.shape[1] != t:
+                    raise RuntimeError(f"kd teacher gives {t_logits.shape[1]} frames, the student {t}")
                 valid = torch.arange(t, device=self.device)[None, :] < out["frame_lens"][:, None]
-                kd = kd_loss(out["logits"], tout["logits"], valid, self.cfg["kd"]["temperature"])
+                kd = kd_loss(out["logits"], t_logits, valid, self.cfg["kd"]["temperature"])
                 stats["kd"] = _f(kd)
                 loss = loss + self.kd_weight * kd
             if hidden is not None:

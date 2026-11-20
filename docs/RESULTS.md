@@ -79,3 +79,31 @@ Dev sets:
 | FLEURS en_us train | English | 7.5 h, 2,602 clips | 20% of English (repeated) |
 
 The two languages are mixed 50/50 by audio seconds.
+
+## 6. sota-base v2, first attempt: output distillation (dropped)
+
+The first v2 chain used two teachers:
+- the 300M fine-tune for hidden states;
+- the fine-tuned 1B for outputs, distilled in every stage (Stage 1 included);
+
+and in Stage 2 it also distilled 13 layers instead of 5. Stage 1 ran 6k steps.
+
+Its Stage 1 teacher reached 4.61 / 6.56 / 12.41 / 21.42 on dev (DDD / Libri / FLEURS-km / FLEURS-en). That is about the same as v1 on Khmer and worse on English (v1: 4.64 / 5.98 / 12.33 / 20.86). In Stage 2, English collapsed early: Libri dev WER reached 52.8% at step 500 and 60.2% at step 2,000. The run was stopped and replaced by these short tests, all started from that Stage 1 teacher and scored on the dev sets:
+
+| Test | Change | Step | DDD | Libri | FLEURS-km | FLEURS-en |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| v1 Stage 2 | reference (v1 teacher) | 500 | 7.70 | 11.17 | 18.14 | 29.94 |
+| first v2 | 1B output KD, 13 layers, 960 h | 500 | 13.04 | 52.80 | 26.25 | 68.21 |
+| B | same, but 464 h English | 500 | 11.62 | 23.75 | 23.72 | 43.01 |
+| C | output KD from the 300M itself | 500 | 14.02 | 19.43 | 26.77 | 42.12 |
+| A | no output KD, 13 layers | 500 | 8.95 | 13.96 | 19.37 | 32.88 |
+| E | no output KD, 5 layers | 500 | **7.21** | 14.12 | **17.51** | 33.03 |
+| v1 Stage 3 | reference (300M teacher) | 1,000 | **6.44** | **15.21** | **21.65** | **38.19** |
+| D | Stage 3 with the 1B as teacher (kd 2, 960 h), from v1's Stage 2b | 1,000 | 7.02 | 19.44 | 22.17 | 41.49 |
+
+- **Output KD hurts Stage 2 whatever the teacher.** Compare A with C and with the first v2.
+- **The new data makes the 1B's KD worse,** but is harmless without it. Compare B with the first v2, and A with v1.
+- **13 distillation layers do not beat 5** (A vs E).
+- **The 1B is a worse recovery teacher than the 300M,** on Khmer as well, where the 1B is trained (D).
+
+**Spike timing.** On LibriSpeech dev, only 45% of the v1 300M teacher's non-blank frames coincide with the 1B's (KL 2.7 nats per frame). After the first v2 Stage 1 with 1B KD, 78% coincide (KL 0.24).

@@ -5,7 +5,8 @@
     data/ddd_dev.jsonl         <= 400 utterances from held-out DDD shards (checkpoint selection)
     data/ddd_test.jsonl        DDD-Test (streaming_asr manifests/val_indomain.jsonl), report only
     data/fleurs_km_test.jsonl  FLEURS km test (streaming_asr manifests/test_fleurs_test.jsonl)
-    data/libri_train.jsonl     train-clean-100 + train-clean-360
+    data/libri_train.jsonl     train-clean-100 + train-clean-360 (--libri-subsets / --libri-out for
+                               others, e.g. all 960 h -> data/libri_train_960.jsonl for configs/base_v2)
     data/libri_{dev-clean,test-clean,test-other}.jsonl
 
   --only fleurs (the fine-tune-first mix; downloads FLEURS en_us from the Hub if missing):
@@ -14,6 +15,8 @@
     data/fleurs_km_units.json  FLEURS km train rows by shard (mixed in at a fixed share, see data.py)
 
     .venv/bin/python scripts/01_prepare_data.py [--only ddd|libri|libri-eval|fleurs]
+    .venv/bin/python scripts/01_prepare_data.py --only libri \
+        --libri-subsets train-clean-100,train-clean-360,train-other-500 --libri-out data/libri_train_960.jsonl
 """
 
 from __future__ import annotations
@@ -112,11 +115,11 @@ def prepare_libri_eval(args) -> None:
 
 def prepare_libri(args) -> None:
     train = []
-    for s in ("train-clean-100", "train-clean-360"):
+    for s in args.libri_subsets.split(","):
         rows = libri_rows(s)
         print(f"  {s}: {len(rows)} utts, {sum(r['duration'] for r in rows) / 3600:.1f} h")
         train += rows
-    write_jsonl(OUT / "libri_train.jsonl", train)
+    write_jsonl(PROJECT_ROOT / args.libri_out, train)
     prepare_libri_eval(args)
 
 
@@ -167,6 +170,8 @@ def main() -> None:
     ap.add_argument("--dev-utts", type=int, default=400)
     ap.add_argument("--min-dur", type=float, default=1.0)
     ap.add_argument("--max-dur", type=float, default=25.0)
+    ap.add_argument("--libri-subsets", default="train-clean-100,train-clean-360")
+    ap.add_argument("--libri-out", default="data/libri_train.jsonl", help="relative to training/")
     args = ap.parse_args()
     if args.only in (None, "ddd"):
         prepare_ddd(args)

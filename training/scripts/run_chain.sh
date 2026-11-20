@@ -4,14 +4,14 @@
 #   cut (04_apply_pruning) -> Stage 2b distil with the mask frozen -> Stage 3 CTC + logit KD ->
 #   test-set scores for the pruned model and the teacher (runs/eval/<size>{,_teacher}.json).
 #
-#   scripts/run_chain.sh large|base
+#   scripts/run_chain.sh large|base|base_v2      (configs/<name>/ -> runs/<name>/)
 #
 # Rerunning resumes: finished steps are skipped (DONE / output file), and run_stage.sh
 # resumes a stage from its latest.pt. Any step that does not exit 0 stops the chain.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/env.sh
-SIZE=${1:?usage: run_chain.sh large|base}
+SIZE=${1:?usage: run_chain.sh large|base|base_v2}
 R=runs/$SIZE
 C=configs/$SIZE
 [ -d "$C" ] || { echo "no configs in $C"; exit 2; }
