@@ -5,9 +5,11 @@ Everything for training lives in `training/` and is separate from the `karna` pa
 ```bash
 pip install -e ".[train]"
 cp training/local.env.example training/local.env      # then point it at your data
-training/run.sh base                                   # omniASR CTC-300M -> karna-base (73M)
-training/run.sh large                                  # omniASR CTC-1B   -> karna-large (204M)
+training/run.sh base                                   # omniASR CTC-300M -> karna-base v1 (73M)
+training/run.sh large                                  # omniASR CTC-1B   -> karna-large v1 (204M)
 ```
+
+`run.sh` reproduces the first release. The released v2 models come from the v2 chains, `scripts/run_chain.sh base_v2|large_v2`, after the same assets, manifests and conversion (see **karna-base v2** below).
 
 Each step skips itself once its output exists, and each training stage resumes from its last checkpoint. To continue after an interruption, run the same command again.
 
@@ -70,7 +72,7 @@ scripts/run_stage.sh configs/base/stage2_prune_s80.yaml [--set optim.max_steps=5
 
 `scripts/env.sh` reads `local.env` and picks the interpreter: the repo's `.venv` if present, else `python3`. It also puts `training/` and the repo root on `PYTHONPATH`.
 
-**karna-base v2.** `configs/base_v2/` is the base chain with a full-pass Stage 1 (about 62k steps), 960 h of LibriSpeech and a longer Stage 3 ([DESIGN.md](DESIGN.md) §4). `configs/large_v2/` is the same v2 chain for the 1B: the full-pass Stage 1, then the v1 1B prune / 2b / recovery settings with the v2 changes (6k-step sparsity ramp, 24k-step Stage 3). Both need train-other-500:
+**karna-base v2 and karna-large v2 (the released models).** `configs/base_v2/` is the base chain with a full-pass Stage 1 (about 62k steps), 960 h of LibriSpeech and a longer Stage 3 ([DESIGN.md](DESIGN.md) §4). `configs/large_v2/` is the same v2 chain for the 1B: the full-pass Stage 1, then the v1 1B prune / 2b / recovery settings with the v2 changes (6k-step sparsity ramp, 24k-step Stage 3). Both need train-other-500:
 
 ```bash
 SUBSETS=train-other-500 scripts/00_get_assets.sh 300m      # or scripts/fetch_parallel.sh on a capped line

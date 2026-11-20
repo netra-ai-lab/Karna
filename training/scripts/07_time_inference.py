@@ -18,8 +18,8 @@ import karna
 from karna.model import normalize_audio_
 
 # The training checkpoints the released models were exported from (logit diff 0); a hub name works too.
-MODELS = {"teacher-300m": "runs/base/stage1_finetune/teacher.pt", "karna-base": "runs/base/stage3_recover/latest.pt",
-          "teacher-1b": "runs/large/stage1_finetune/teacher.pt", "karna-large": "runs/large/stage3_recover/latest.pt"}
+MODELS = {"teacher-300m": "runs/base_v2/stage1_finetune/teacher.pt", "karna-base": "runs/base_v2/stage3_recover/latest.pt",
+          "teacher-1b": "runs/large_v2/stage1_finetune/teacher.pt", "karna-large": "runs/large_v2/stage3_recover/latest.pt"}
 
 
 class PartTimer:

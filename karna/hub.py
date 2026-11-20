@@ -9,10 +9,10 @@ import torch
 
 #: short names for the released models
 MODELS = {
-    "karna-base": "Netra-Lab/karna-base",  # 73M, pruned from omniASR CTC-300M
-    "karna-large": "Netra-Lab/karna-large",  # 204M, pruned from omniASR CTC-1B
-    "teacher-300m": "Darayut/omniASR-CTC-300M-km-en",  # 325M, fine-tuned, unpruned
-    "teacher-1b": "Darayut/omniASR-CTC-1B-km-en",  # 975M, fine-tuned, unpruned
+    "karna-base": "Netra-Lab/karna-base",  # 71M (v2), pruned from omniASR CTC-300M
+    "karna-large": "Netra-Lab/karna-large",  # 217M (v2), pruned from omniASR CTC-1B
+    "teacher-300m": "Darayut/omniASR-CTC-300M-km-en",  # 325M, fine-tuned (v1 teacher), unpruned
+    "teacher-1b": "Darayut/omniASR-CTC-1B-km-en",  # 975M, fine-tuned (v1 teacher), unpruned
 }
 DEFAULT_MODEL = "karna-base"
 _FILES = ["config.json", "model.safetensors", "vocab.json"]

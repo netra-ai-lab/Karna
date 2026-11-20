@@ -1,6 +1,6 @@
 """Draw the README figures from the training outputs (Netra chart style).
 
-    python assets/make_figures.py      # reads training/runs/eval/*.json and */stage2_prune_s80/pruned.json
+    python assets/make_figures.py      # reads training/runs/eval/*.json and *_v2/stage2_prune_s80/pruned.json (the released v2 models)
 
 Writes assets/pruning.png (the encoder before and after pruning), assets/inference_time.png (inference time at 0% and 80% sparsity),
 assets/results.png (test error, two model sizes) and assets/layers.png (what pruning kept in each layer).
@@ -40,11 +40,11 @@ def scores(*names: str) -> dict[str, float]:
 def results() -> None:
     groups = [
         ("Large: from omniASR CTC-1B", [("Stock 1B · 975M", scores("stock_1b", "stock_1b_fleurs"), BASELINES[3]),
-                                         ("Fine-tuned 1B · 975M", scores("large_teacher"), BASELINES[0]),
-                                         ("karna-large · 204M", scores("large"), None)]),
+                                         ("Fine-tuned 1B · 975M", scores("large_v2_teacher"), BASELINES[0]),
+                                         ("karna-large · 217M", scores("large_v2"), None)]),
         ("Base: from omniASR CTC-300M", [("Stock 300M · 325M", scores("stock_300m"), BASELINES[3]),
-                                          ("Fine-tuned 300M · 325M", scores("base_teacher"), BASELINES[0]),
-                                          ("karna-base · 73M", scores("base"), None)]),
+                                          ("Fine-tuned 300M · 325M", scores("base_v2_teacher"), BASELINES[0]),
+                                          ("karna-base · 71M", scores("base_v2"), None)]),
     ]
     fig, axes = plt.subplots(1, 2, figsize=(13, 4.4), sharey=True)
     x = np.arange(len(TESTS)) * 1.6
@@ -72,7 +72,7 @@ def layers() -> None:
     fig, axes = plt.subplots(2, 2, figsize=(13, 5.6), gridspec_kw={"height_ratios": [2.2, 1]}, sharex="col")
     for col, (size, distilled, full_ffn, full_heads) in enumerate([("large", {12, 24, 36, 48}, 5120, 16),
                                                                      ("base", {6, 12, 18, 24}, 4096, 16)]):
-        p = json.loads((RUNS / size / "stage2_prune_s80" / "pruned.json").read_text())
+        p = json.loads((RUNS / f"{size}_v2" / "stage2_prune_s80" / "pruned.json").read_text())
         n = len(p["ffn_dims"])
         idx = np.arange(1, n + 1)
         colors = [OURS if i in distilled else BASELINES[3] for i in idx]
@@ -107,7 +107,7 @@ def pruning() -> None:
     ink, white = COLOR["foreground"], CHART["figureBackground"]
     kinds = {"cnn": (COLOR["accent-maroon"], COLOR["tint-maroon"]), "mha": (OURS, COLOR["tint-orange"]),
              "ffn": (COLOR["accent-yellow"], COLOR["tint-yellow"])}
-    p = json.loads((RUNS / "large" / "stage2_prune_s80" / "pruned.json").read_text())
+    p = json.loads((RUNS / "large_v2" / "stage2_prune_s80" / "pruned.json").read_text())
     cells, cw, ch, gap = 4, 3.0, 2.6, 0.75
     shown = (12, 40)  # one wide layer, and one of the deep layers that lost every head
 

@@ -17,7 +17,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-Apache--2.0-e75f1b?labelColor=4f2724" alt="License: Apache-2.0" />
   <img src="https://img.shields.io/badge/python-3.10%2B-e75f1b?labelColor=4f2724&logo=python&logoColor=f5efe5" alt="Python 3.10+" />
-  <a href="https://huggingface.co/Netra-Lab/karna-base"><img src="https://img.shields.io/badge/params-73M%20%7C%20204M-e75f1b?labelColor=4f2724&logo=huggingface&logoColor=f5efe5" alt="73M and 204M parameters" /></a>
+  <a href="https://huggingface.co/Netra-Lab/karna-base"><img src="https://img.shields.io/badge/params-71M%20%7C%20217M-e75f1b?labelColor=4f2724&logo=huggingface&logoColor=f5efe5" alt="71M and 217M parameters" /></a>
 </p>
 
 <h2>
@@ -27,7 +27,7 @@
 </h2>
 
 <p align="center">
-  Khmer and English speech in, text out. Two compact models, 73M and 204M parameters, pruned from Meta's Omnilingual ASR.
+  Khmer and English speech in, text out. Two compact models, 71M and 217M parameters, pruned from Meta's Omnilingual ASR.
 </p>
 
 <p align="center">
@@ -40,16 +40,16 @@
 
 ## 1. Abstract
 
-This repository presents Karna, a pair of **73M- and 204M-parameter** CTC speech recognisers for Khmer and English. They are built by structurally pruning Meta's Omnilingual ASR CTC models (`omniASR_CTC_300M` and `omniASR_CTC_1B`) to **80% encoder sparsity**. The recipe follows *Fine-tune Before Structured Pruning*:
+This repository presents Karna, a pair of **71M- and 217M-parameter** CTC speech recognisers for Khmer and English. They are built by structurally pruning Meta's Omnilingual ASR CTC models (`omniASR_CTC_300M` and `omniASR_CTC_1B`) to **about 80% encoder sparsity**. The recipe follows *Fine-tune Before Structured Pruning*:
 1. The full model is fine-tuned on the target languages.
 2. Hard Concrete L0 gates remove attention heads and FFN units while the model is distilled to that fine-tuned teacher.
 3. The pruned model recovers with CTC plus distillation of the teacher's output distribution.
 
-On the DDD test set, the 204M model reaches **1.77% CER**, against 2.47% for its 975M teacher, at a quarter of the compute (12.3 against 50.3 GMAC per second of audio). The 73M model reaches **2.60% CER**, below its 325M teacher's 3.68%, at 5.8 GMAC/s.
+On the DDD test set, the 217M model reaches **1.33% CER**, against 1.22% for its 975M teacher and 5.95% for the stock 1B, at a quarter of the compute (12.9 against 50.3 GMAC per second of audio). The 71M model reaches **1.94% CER**, against its 325M teacher's 1.47%, at 5.8 GMAC/s. These are the v2 models; the first release and what changed are in [docs/RESULTS.md](docs/RESULTS.md).
 
 ## 2. Dataset
 
-Karna was trained on about **1,537 hours** of speech, mixed 50/50 between Khmer and English by audio seconds. FLEURS is fixed at 20% of each language's audio and repeated as needed.
+Karna was trained on about **2,034 hours** of speech, mixed 50/50 between Khmer and English by audio seconds. FLEURS is fixed at 20% of each language's audio and repeated as needed.
 
 ### Sources
 
@@ -57,9 +57,9 @@ Karna was trained on about **1,537 hours** of speech, mixed 50/50 between Khmer 
 | :--- | :--- | ---: | :--- |
 | [DDD Khmer Speech](https://huggingface.co/datasets/Digital-Divide-Data/khmer-speech-dataset) | Khmer speech | 1,058 h | Cambodian culture, 61 topics, native speakers |
 | [FLEURS](https://huggingface.co/datasets/google/fleurs) km_kh train | Khmer read speech | 7.1 h | Wikipedia sentences |
-| [LibriSpeech](https://www.openslr.org/12) train-clean-100 + 360 | English read speech | 464 h | Audiobooks |
+| [LibriSpeech](https://www.openslr.org/12) train-clean-100 + 360 + other-500 | English read speech | 961 h | Audiobooks |
 | [FLEURS](https://huggingface.co/datasets/google/fleurs) en_us train | English read speech | 7.5 h | Wikipedia sentences |
-| **Total** | | **1,537 h** | |
+| **Total** | | **2,034 h** | |
 
 ### Preprocessing
 
@@ -77,7 +77,7 @@ Karna was trained on about **1,537 hours** of speech, mixed 50/50 between Khmer 
   <img src="assets/architecture.png" width="420" alt="Karna's architecture, reading upwards from 16 kHz audio to the CTC head, with one transformer layer opened up" />
 </p>
 
-<p><em>Figure 1: The model, reading upwards, with one transformer layer opened up: 16 kHz audio, a feature extractor of 7 convolutional layers giving one frame every 20 ms, a convolutional position encoder added back to the frames, 48 pre-LayerNorm transformer layers of width 1,280, a final LayerNorm and a CTC head over 9,812 characters. Every attention head and every FFN unit has its own Hard Concrete gate z. The cells in the opened layer are layer 12 of karna-large: 8 of 16 heads and 3,355 of 5,120 FFN units kept; which ones are kept is schematic.</em></p>
+<p><em>Figure 1: The model, reading upwards, with one transformer layer opened up: 16 kHz audio, a feature extractor of 7 convolutional layers giving one frame every 20 ms, a convolutional position encoder added back to the frames, 48 pre-LayerNorm transformer layers of width 1,280, a final LayerNorm and a CTC head over 9,812 characters. Every attention head and every FFN unit has its own Hard Concrete gate z. The cells in the opened layer are layer 12 of karna-large: 11 of 16 heads and 3,788 of 5,120 FFN units kept; which ones are kept is schematic.</em></p>
 
 **The base model.** A wav2vec2-style encoder:
 - a 7-layer CNN feature extractor (20 ms frames);
@@ -91,18 +91,18 @@ Karna was trained on about **1,537 hours** of speech, mixed 50/50 between Khmer 
   <img src="assets/pruning.png" width="1000" alt="The fine-tuned omniASR CTC-1B before structured pruning and karna-large after: CNN and CTC head kept, attention heads and FFN units removed" />
 </p>
 
-<p><em>Figure 2: Structured pruning removes whole attention heads (MHA) and FFN units from every transformer layer, chosen by one Hard Concrete gate each; the CNN front end is kept. Each cell is a quarter of a layer's heads or FFN units: layer 12 of karna-large keeps 8 of 16 heads and 3,355 of 5,120 FFN units, and layer 40 keeps no heads and 228 FFN units. Training runs in five steps: fine-tune, prune, cut, distil with the mask frozen, and recover with CTC and logit distillation ([docs/DESIGN.md](docs/DESIGN.md)).</em></p>
+<p><em>Figure 2: Structured pruning removes whole attention heads (MHA) and FFN units from every transformer layer, chosen by one Hard Concrete gate each; the CNN front end is kept. Each cell is a quarter of a layer's heads or FFN units: layer 12 of karna-large keeps 11 of 16 heads and 3,788 of 5,120 FFN units, and layer 40 keeps no heads and 264 FFN units. Training runs in five steps: fine-tune, prune, cut, distil with the mask frozen, and recover with CTC and logit distillation ([docs/DESIGN.md](docs/DESIGN.md)).</em></p>
 
 <p align="center">
   <img src="assets/inference_time.png" width="560" alt="Inference time for 60 s of audio at 0% and 80% encoder sparsity, for the base and large models" />
 </p>
 
-<p><em>Figure 3: Inference time before and after pruning, for one 60 s utterance (batch 1, bf16, median of 20 runs on one machine; `training/scripts/07_time_inference.py`). At 80% encoder sparsity karna-base runs 1.6× faster than its teacher and karna-large 2.2× faster. Over the batched test sets (the Speed column below) the speed-ups are 1.8× and 2.5×.</em></p>
+<p><em>Figure 3: Inference time before and after pruning, for one 60 s utterance (batch 1, bf16, median of 20 runs on one machine; `training/scripts/07_time_inference.py`). At about 80% encoder sparsity karna-base runs 1.6× faster than its teacher and karna-large 2.2× faster. Over the batched test sets (the Speed column below) the speed-ups are 1.8× and 2.4×.</em></p>
 
 | Feature | Detail |
 | :--- | :--- |
 | Pruned units | Attention heads and FFN intermediate units (Hard Concrete L0 gates) |
-| Sparsity control | Augmented Lagrangian; target ramps 0 → 80% over the first 25% of Stage 2 |
+| Sparsity control | Augmented Lagrangian; target ramps 0 → 80% over the first 50% of Stage 2 |
 | Distillation | L1 − cosine on hidden states at 5 layers (Stages 2 and 2b); frame-level KL on outputs (Stage 3) |
 | Decoding | Greedy CTC, no language model |
 
@@ -110,22 +110,23 @@ Karna was trained on about **1,537 hours** of speech, mixed 50/50 between Khmer 
 | :--- | ---: | ---: |
 | Pruned from | omniASR CTC-300M | omniASR CTC-1B |
 | Encoder layers × model dim | 24 × 1024 | 48 × 1280 |
-| Heads kept (of 384 / 768) | 98 | 203 |
-| FFN units kept (of 98,304 / 245,760) | 11,663 | 34,939 |
-| Stage 1 / 2 / 2b / 3 steps | 6k / 12k / 5k / 16k | 6k / 12k / 5k / 16k |
-| Compute (GMAC / s of audio) | 5.8 | 12.3 |
-| Total parameters | 73M | 204M |
+| Heads kept (of 384 / 768) | 91 | 198 |
+| FFN units kept (of 98,304 / 245,760) | 11,740 | 41,045 |
+| Encoder sparsity | 80.6% | 78.7% |
+| Stage 1 / 2 / 2b / 3 steps | 62k / 12k / 5k / 24k | 62k / 12k / 5k / 24k |
+| Compute (GMAC / s of audio) | 5.8 | 12.9 |
+| Total parameters | 71M | 217M |
 
 ## 4. Evaluation
 
 | Model | Params | Speed | DDD (CER) | FLEURS-km (CER) | LibriSpeech (WER) |
 | :--- | ---: | ---: | ---: | ---: | ---: |
 | omniASR CTC-1B (stock) | 975M | 1.0× | 5.95 | 11.26 | 4.40 |
-| Fine-tuned 1B (teacher) | 975M | 1.0× | 2.47 | 9.44 | 3.61 |
-| **karna-large (ours)** | **204M** | **2.5×** | **1.77** | **11.40** | **6.07** |
+| Fine-tuned 1B (teacher) | 975M | 1.0× | 1.22 | 7.77 | 3.54 |
+| **karna-large (ours)** | **217M** | **2.4×** | **1.33** | **10.20** | **5.44** |
 | omniASR CTC-300M (stock) | 325M | 1.0× | 9.65 | 16.26 | 6.53 |
-| Fine-tuned 300M (teacher) | 325M | 1.0× | 3.68 | 12.64 | 5.89 |
-| **karna-base (ours)** | **73M** | **1.8×** | **2.60** | **16.39** | **11.15** |
+| Fine-tuned 300M (teacher) | 325M | 1.0× | 1.47 | 9.95 | 5.57 |
+| **karna-base (ours)** | **71M** | **1.8×** | **1.94** | **15.20** | **10.96** |
 
 - **Scoring.** Greedy decoding, error rates in %, on the full test sets:
 
@@ -137,7 +138,8 @@ Karna was trained on about **1,537 hours** of speech, mixed 50/50 between Khmer 
 
 - **Speed.** Inference speed relative to the unpruned model of the same size, measured as the real-time factor on one machine.
 - **In-domain.** FLEURS-km train is in the training mix, so its test set is in-domain.
-- **More results.** [docs/RESULTS.md](docs/RESULTS.md) adds FLEURS-en and LibriSpeech test-other, plus the ablations behind the recipe: pruning without fine-tuning first, and Stage 3 without distillation or with a shorter schedule.
+- **Teachers.** The teachers here are the v2 fine-tuned models (a full pass over the training mix). The teachers on Hugging Face are still the first release's, which score 2.47 (1B) and 3.68 (300M) on DDD.
+- **More results.** [docs/RESULTS.md](docs/RESULTS.md) adds FLEURS-en and LibriSpeech test-other, the first release against v2, and the ablations behind the recipe: pruning without fine-tuning first, and Stage 3 without distillation or with a shorter schedule.
 
 ## 5. Install
 
@@ -153,8 +155,8 @@ pip install git+https://github.com/netra-ai-lab/Karna
 | `dev` | pytest |
 
 The first run downloads the weights from [Hugging Face](https://huggingface.co/Netra-Lab/karna-base) and caches them under `~/.cache/huggingface` (`HF_HOME`):
-- karna-base: 292 MB;
-- karna-large: 814 MB.
+- karna-base: 285 MB;
+- karna-large: 869 MB.
 
 The CPU is enough, and CUDA is used when available.
 
@@ -194,7 +196,7 @@ training/run.sh base                               # or: training/run.sh large
 
 ## 7. Limitations
 
-- **English is the weak side.** Pruning to 80% costs English far more than Khmer, at 1.5–2× the teacher's WER. Use `karna-large`, or a fine-tuned teacher, when English accuracy matters.
+- **English is the weak side.** Pruning to about 80% costs English far more than Khmer, at 1.5–2× the teacher's WER. Use `karna-large`, or a fine-tuned teacher, when English accuracy matters.
 - **No punctuation or casing.** Output is lowercase with no punctuation, because the Omnilingual character vocabulary has no Khmer punctuation.
 - **Greedy decoding only.** There is no language model or beam search.
 - **One pass per file.** Each file is decoded in a single pass, so split long recordings into utterances first. Training used clips of 1–25 s.

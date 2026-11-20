@@ -38,16 +38,16 @@ The recipe follows *Fine-tune Before Structured Pruning* (Han et al., arXiv 2505
 </p>
 
 - **Width follows the distillation targets.** FFN width peaks at the distilled layers, and the layer right after each target keeps the least.
-- **The deepest layers lose all attention.** In the 1B, layers 38–47 keep no attention heads; in the 300M, layers 21–24.
+- **The deepest layers lose all attention.** In karna-large, layers 38–47 keep no attention heads. In karna-base the deep layers keep few: layers 21 and 23 keep none (in v1, layers 21–24).
 
-## 4. karna-base v2
+## 4. v2
 
 The first release beats its teacher on DDD but loses English. For karna-base, test-clean WER rose from 5.89 to 11.15 and FLEURS-en from 19.51 to 30.24. Several things in v1's own logs point at under-training:
 - **Stage 1 sees only a small slice of the data.** Its 6k steps cover about 220 h of audio, roughly 9% of one pass over the mix.
 - **Recovery stops while still improving.** In Stage 3, Libri dev WER stays flat until the learning rate decays, and is still falling at step 16k.
 - **English data is narrow.** It is LibriSpeech clean only (464 h).
 
-`configs/base_v2/` (`scripts/run_chain.sh base_v2`) keeps the recipe and changes only what the logs and the short tests in [RESULTS.md](RESULTS.md) §6 support:
+`configs/base_v2/` (`scripts/run_chain.sh base_v2`) keeps the recipe and changes only what the logs and the short tests in [RESULTS.md](RESULTS.md) §7 support:
 
 1. **More English.** LibriSpeech train-other-500 is added (`data/libri_train_960.jsonl`, 961 h), with the same 50/50 language mix and the same FLEURS share.
 2. **A full-pass Stage 1.** About 62k steps cover the whole mix once (about 2,520 h with FLEURS at 20%).
@@ -57,6 +57,8 @@ The first release beats its teacher on DDD but loses English. For karna-base, te
 **Tried and dropped: output distillation during pruning.** The trainer can add frame-level KL to a teacher's output distribution in the prune and distill stages, from a separate output teacher (`kd.teacher`, for example the fine-tuned 1B). In short Stage 2 tests this hurt every dev set, even when the teacher was the student's own parent. Using the 1B as the recovery teacher was also worse than the 300M. Two CTC models put their character spikes on different frames, so frame-level matching between them pulls against the student's own alignment.
 
 `configs/large_v2/` gives the 1B the same full-pass Stage 1, as the next teacher for karna-large, and the same chain after it.
+
+**Outcome.** v2 improves every test set at both sizes ([RESULTS.md](RESULTS.md) §2), and the v2 models are the released ones. The teachers gain the most: a full-pass Stage 1 halves their DDD error. The four changes were made together, so their separate effects are not measured. The slower ramp did not stop the Lagrangian from overshooting, and karna-large v2 was cut at 78.7% sparsity (217M) rather than 80%.
 
 ## 5. Code map
 
