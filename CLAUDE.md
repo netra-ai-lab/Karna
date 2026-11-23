@@ -48,8 +48,8 @@ Tests (2026-11-23): `pytest tests training/tests`: 29 passed, 8 skipped (CUDA-on
 
 ## Pending (each outward-facing step needs the user's go-ahead)
 
-1. Upload `onnx/` to both HF repos (with the updated cards from `training/release/cards/`), then pin `revision` in `karna/models.py` to the commit (both now say `main  # TODO`).
+1. Done 2026-11-23: `onnx/`, the standardised cards and `assets/header.png` are uploaded. `revision` is pinned to karna-base `563d364`, karna-large `d124eca`. `pytest --slow` passes against the published models.
 2. `docker build` (the Docker daemon wasn't running on 2026-11-23), then fill the image size and memory TODOs in the README §5 table and in `docs/RELEASING.md`.
 3. Measure CUDA parity and speed on a GPU machine.
-4. PyPI pending publisher and the GitHub `pypi` environment, GHCR visibility (see `docs/RELEASING.md`).
-5. Push the `onnx-serving` branch, open the PR, and tag `v0.2.0` after merge.
+4. PyPI pending publisher and the GitHub `pypi` environment (user, on the web; Chrome is not allowed on pypi.org). GHCR visibility after the first image is pushed.
+5. Branch `onnx-serving` is pushed; the user opens the PR (Chrome is not signed in to GitHub, and gh is not installed). Tag `v0.2.0` after merge.

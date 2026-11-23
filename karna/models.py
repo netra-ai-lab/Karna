@@ -21,9 +21,11 @@ from .inference.hub import CONFIG_NAME
 #: short name -> Hugging Face repo, the ONNX folder in it, and the commit this version runs.
 #: Move a revision only together with a package release, after uploading (docs/RELEASING.md).
 MODELS = {
-    "karna-base": {"repo": "Netra-Lab/karna-base", "folder": "onnx", "revision": "main",  # TODO: pin the commit
+    "karna-base": {"repo": "Netra-Lab/karna-base", "folder": "onnx",
+                   "revision": "563d3649971a8f554ec589e5e6d4297079e7173a",
                    "params": "71M", "about": "pruned from omniASR CTC-300M; fastest"},
-    "karna-large": {"repo": "Netra-Lab/karna-large", "folder": "onnx", "revision": "main",  # TODO: pin the commit
+    "karna-large": {"repo": "Netra-Lab/karna-large", "folder": "onnx",
+                    "revision": "d124eca52b4911bd651b3804f775ca63855cc423",
                     "params": "217M", "about": "pruned from omniASR CTC-1B; most accurate, best English"},
 }
 DEFAULT_MODEL = "karna-base"
