@@ -61,3 +61,5 @@ Live, real-time pacing over the WebSocket (`/v1/stream`, same laptop): karna-bas
 3. Measure CUDA parity and speed on a GPU machine.
 4. Done: PyPI trusted publisher and the GitHub `pypi` environment are set up; the GHCR image is public.
 5. Done: `onnx-serving` is fast-forwarded into `master`; tag `v0.2.0` is pushed. The merged `onnx-serving` branch can be deleted.
+6. Done 2026-11-23: v1.0.0 (live transcription) released: tag `v1.0.0` pushed; the pypi, docker and tests workflows passed. A clean `[cpu,server]` venv from PyPI gave 1.0.0, no torch, golden 4/4 (karna-base), and a working `asr.stream()`.
+7. Try Live with a real microphone, and in Firefox and Safari. So far it has only been checked in Chrome, with a clip fed in as the microphone.
