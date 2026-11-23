@@ -2,8 +2,8 @@
 
     python scripts/07_time_inference.py [--seconds 60] [--runs 20] [--out runs/eval/components.json]
 
-Runs one utterance of ``--seconds`` audio through each model as ``karna.transcribe`` does
-(bf16 autocast on CUDA, batch 1) and records the median forward time over ``--runs`` runs,
+Runs one utterance of ``--seconds`` audio through each PyTorch model (bf16 autocast on CUDA,
+batch 1) and records the median forward time over ``--runs`` runs,
 after warm-up. Compute does not depend on the audio content, so the input is noise.
 """
 
@@ -14,8 +14,8 @@ from pathlib import Path
 
 import torch
 
-import karna
-from karna.model import normalize_audio_
+from karna_train.model import normalize_audio_
+from karna_train.release import load_release
 
 # The training checkpoints the released models were exported from (logit diff 0); a hub name works too.
 MODELS = {"teacher-300m": "runs/base_v2/stage1_finetune/teacher.pt", "karna-base": "runs/base_v2/stage3_recover/latest.pt",
@@ -37,8 +37,8 @@ class PartTimer:
 
 @torch.inference_mode()
 def time_model(source: str, seconds: float, runs: int) -> dict:
-    asr = karna.load_model(source, device="cuda")
-    model = asr.model
+    model, _ = load_release(source)
+    model = model.cuda()
     timer = PartTimer(model, model)
     wav = torch.randn(1, int(16000 * seconds), device="cuda")
     lens = torch.tensor([wav.shape[1]], device="cuda")
@@ -50,8 +50,8 @@ def time_model(source: str, seconds: float, runs: int) -> dict:
         torch.cuda.synchronize()
         if i >= 5:
             times.append(timer.ms())
-    out = {"ms": statistics.median(times), "params": asr.num_parameters}
-    del asr, model
+    out = {"ms": statistics.median(times), "params": sum(p.numel() for p in model.parameters())}
+    del model
     torch.cuda.empty_cache()
     return out
 

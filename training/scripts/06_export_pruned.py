@@ -1,9 +1,10 @@
-"""Export a pruned checkpoint as a release folder that ``karna.load_model`` reads.
+"""Export a pruned checkpoint as a PyTorch release folder (``karna_train.release.load_release`` reads it).
 
     python scripts/06_export_pruned.py runs/base/stage3_recover/latest.pt runs/base/release/karna-base
 
 Writes model.safetensors, config.json (per-layer heads and FFN widths) and vocab.json, then
-reloads the folder with ``karna.load_model`` and checks it reproduces the checkpoint's logits.
+reloads the folder and checks it reproduces the checkpoint's logits. ``training/export.sh`` then
+turns the folder into the ONNX model folder the ``karna`` package runs.
 """
 
 from __future__ import annotations
@@ -18,9 +19,9 @@ import torch
 from safetensors.torch import save_file
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import karna  # noqa: E402
-from karna.model import ArchConfig, PrunableCTC  # noqa: E402
+from karna_train.model import ArchConfig, PrunableCTC  # noqa: E402
 from karna.text import VOCAB_PATH  # noqa: E402
+from karna_train.release import load_release  # noqa: E402
 
 
 def main() -> None:
@@ -39,13 +40,13 @@ def main() -> None:
     ref = PrunableCTC(ArchConfig.from_dict(ck["arch"]))
     ref.load_state_dict(ck["model"])
     ref.eval()
-    asr = karna.load_model(out, device="cpu")
+    model, _ = load_release(out)
     g = torch.Generator().manual_seed(0)
     audio = torch.randn(1, 16000 * 3, generator=g) * 0.1
     lens = torch.tensor([audio.shape[1]])
     with torch.no_grad():
-        diff = (asr.model(audio, lens)["logits"] - ref(audio, lens)["logits"]).abs().max().item()
-    n = sum(p.numel() for p in asr.model.parameters())
+        diff = (model(audio, lens)["logits"] - ref(audio, lens)["logits"]).abs().max().item()
+    n = sum(p.numel() for p in model.parameters())
     print(f"{out}: {n / 1e6:.2f}M params, max |logit diff| vs checkpoint = {diff:.2e}")
     if diff != 0:
         raise SystemExit("export does not reproduce the checkpoint")

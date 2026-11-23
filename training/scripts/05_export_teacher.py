@@ -24,7 +24,7 @@ import torch
 from safetensors.torch import save_file
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from karna.model import ArchConfig, PrunableCTC  # noqa: E402
+from karna_train.model import ArchConfig, PrunableCTC  # noqa: E402
 from karna_train import TOKENIZER, SIZES  # noqa: E402
 from karna_train.convert import parity  # noqa: E402
 

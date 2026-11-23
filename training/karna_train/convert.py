@@ -16,7 +16,7 @@ from pathlib import Path
 
 import torch
 
-from karna.model import ArchConfig, PrunableCTC, normalize_audio_
+from karna_train.model import ArchConfig, PrunableCTC, normalize_audio_
 from karna.text import SPACE_PIECE, SPECIAL, VOCAB_PATH, CharVocab
 
 from . import SIZES, converted_checkpoint, fairseq2_card  # importing the package registers the asset cards

@@ -1,0 +1,17 @@
+{
+  "note": "written by scripts/make_golden.py; references in references.tsv",
+  "models": {
+    "karna-base": {
+      "fleurs-km-validation-0000.flac": "ការដាំឡើយសម្លៀងបំពាក់គឺធ្ងន់ទទួលឥទ្ធិពលដោយវប្បធម៌ ប៉ៃសានជីន azin នៅពាកយខាងកើត",
+      "fleurs-km-validation-0012.flac": "ទឹកកំពុងហូរហៀរលើទំនប់ទឹកនៅផ្នែកមួយដែលមានប្រវ័ន្ត 100 ហ្វីត",
+      "librispeech-dummy-0014.flac": "by hairy quilter m a",
+      "librispeech-dummy-0019.flac": "the king is flood disgrace in your friends are asking for you"
+    },
+    "karna-large": {
+      "fleurs-km-validation-0000.flac": "ការដាំឡើយសម្លៀកបំពាក់គឺធ្ងន់ទទួលឥទ្ធិពលដោយវប្បធម៌ប៉ៃយសាន់ទីន iនៅភាគខាងកើត",
+      "fleurs-km-validation-0012.flac": "ទឹកកំពុងហូរហៀរលើទំនប់ទឹកនៅផ្នែកមួយដែលមានប្រវ័នធ 100 ហ្វីត",
+      "librispeech-dummy-0014.flac": "by harry quilter m a",
+      "librispeech-dummy-0019.flac": "the king is flood and disgrace and your friends are asking for you"
+    }
+  }
+}

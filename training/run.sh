@@ -9,6 +9,7 @@
 # 3. convert the fairseq2 checkpoint to the training format      python -m karna_train.convert
 # 4. fine-tune -> prune -> cut -> distil -> recover -> evaluate   scripts/run_chain.sh
 # 5. export the release folders (Hugging Face layout)            scripts/05/06_export_*.py
+#    and the ONNX model folder the karna package runs              export.sh
 #
 # Every step skips itself when its output exists and every stage resumes from its last
 # checkpoint, so rerunning the same command continues where it stopped. Paths come from
@@ -44,5 +45,6 @@ scripts/run_chain.sh "$SIZE"
 say "5/5 release export"
 OUT=runs/$SIZE/release
 [ -f "$OUT/karna-$SIZE/model.safetensors" ] || "$PY" scripts/06_export_pruned.py "runs/$SIZE/stage3_recover/latest.pt" "$OUT/karna-$SIZE"
+[ -f "$OUT/onnx/karna-$SIZE/model.onnx" ] || ./export.sh "$OUT/karna-$SIZE" "$OUT/onnx/karna-$SIZE"
 [ -f "$OUT/teacher/model.safetensors" ] || "$PY" scripts/05_export_teacher.py "runs/$SIZE/stage1_finetune/teacher.pt" "$OUT/teacher" --size "$STOCK"
 say "done: scores in runs/eval/$SIZE.json, models in $OUT/"

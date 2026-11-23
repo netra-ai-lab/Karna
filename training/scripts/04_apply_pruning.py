@@ -24,7 +24,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from karna_train import ASR_ROOT, CACHE_DIR, PROJECT_ROOT  # noqa: E402
 from karna_train.data import eval_batches, load_eval_set  # noqa: E402
-from karna.model import ArchConfig, PrunableCTC, normalize_audio_  # noqa: E402
+from karna_train.model import ArchConfig, PrunableCTC, normalize_audio_  # noqa: E402
 from karna.text import CharVocab  # noqa: E402
 
 

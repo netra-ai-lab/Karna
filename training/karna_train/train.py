@@ -43,7 +43,7 @@ from . import CACHE_DIR, PROJECT_ROOT
 from .ckpt import atomic_save, git_commit, load as load_ckpt, release_host_memory, rng_state, set_rng_state
 from .data import Batch, DataConfig, load_eval_set, make_train_loader
 from .evaluate import evaluate
-from karna.model import ArchConfig, PrunableCTC, normalize_audio_
+from karna_train.model import ArchConfig, PrunableCTC, normalize_audio_
 from .offload import CPUOffloadAdamW, GPUAdamW
 from karna.text import BLANK, CharVocab
 

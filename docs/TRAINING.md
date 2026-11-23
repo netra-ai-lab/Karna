@@ -3,7 +3,7 @@
 Everything for training lives in `training/` and is separate from the `karna` package, so the package never needs it. One command runs the whole recipe for one model size:
 
 ```bash
-pip install -e ".[train]"
+bash training/setup.sh                              # .venv with karna + karna_train (PyTorch)
 cp training/local.env.example training/local.env      # then point it at your data
 training/run.sh base                                   # omniASR CTC-300M -> karna-base v1 (73M)
 training/run.sh large                                  # omniASR CTC-1B   -> karna-large v1 (204M)
@@ -21,7 +21,7 @@ Each step skips itself once its output exists, and each training stage resumes f
 | 2. Manifests | `scripts/01_prepare_data.py` and `--only fleurs` | `data/*.jsonl`, `data/*_units.json`; downloads FLEURS en_us from the Hub |
 | 3. Convert | `python -m karna_train.convert --size 1b\|300m` | `<KARNA_MODELS_DIR>/<name>/<name>.karna.pt`, after a logit-parity check against fairseq2 |
 | 4. Chain | `scripts/run_chain.sh large\|base` | `runs/<size>/…`, then `runs/eval/<size>.json` and `runs/eval/<size>_teacher.json` |
-| 5. Release | `scripts/06_export_pruned.py`, `scripts/05_export_teacher.py` | `runs/<size>/release/` in the Hugging Face layout |
+| 5. Release | `scripts/06_export_pruned.py`, `scripts/05_export_teacher.py`, `export.sh` | `runs/<size>/release/` in the Hugging Face layout, and `release/onnx/karna-<size>/`, the ONNX model folder the package runs |
 
 `scripts/run_chain.sh` runs the stages in this order:
 
@@ -120,7 +120,7 @@ training/runs/
 │   ├── stage2_prune_s80/     latest.pt (gated), pruned.pt + pruned.json (per-layer architecture)
 │   ├── stage2b_distill/      latest.pt
 │   ├── stage3_recover/       latest.pt  <- the released model
-│   └── release/              karna-<size>/, teacher/
+│   └── release/              karna-<size>/, teacher/ (PyTorch), onnx/karna-<size>/ (ONNX)
 ├── experiments/              the ablation runs
 ├── eval/<name>.json          test-set scores, parameters, GMAC/s, real-time factor
 └── logs/                     <size>_<stage>.log, chain_<size>.log
@@ -138,3 +138,18 @@ Training logs go to `runs/logs/<size>_<stage>.log` and metrics to `<run_dir>/met
 | `offload` | bf16 weights and gradients on the GPU; fp32 master weights and AdamW moments in host memory, updated there each step (`karna_train/offload.py`). The 1B stages use it. |
 
 Stage 2 freezes the CNN feature extractor, since its channels aren't pruned, and uses gradient checkpointing. All gates are sampled once per forward pass, outside the checkpointed region, so the recompute during backward sees the same masks (`tests/test_model.py`).
+
+## Exporting to ONNX
+
+The `karna` package runs ONNX model folders, not PyTorch weights. `training/export.sh` turns a release
+folder, a checkpoint or a published model into one, then runs it **through the package's own code** and
+compares the text with PyTorch. It fails below 99% identical transcripts:
+
+```bash
+CHECK=path/to/audio_folder training/export.sh runs/base/release/karna-base     # -> runs/base/release/onnx/karna-base/
+KARNA_BUNDLES=runs/base/release/onnx karna transcribe speech.wav --model karna-base
+```
+
+The folder holds `model.onnx` (audio and lengths in, per-frame best token and frame counts out),
+`vocab.json` and `netra-model.json` (the settings the runtime reads, and a sha256 per file). It is
+uploaded as `onnx/` in the model's Hugging Face repo ([RELEASING.md](RELEASING.md)).

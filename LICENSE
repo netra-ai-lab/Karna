@@ -191,7 +191,7 @@ Apache License
 --------------------------------------------------------------------------------
 Third-party code
 
-karna/hardconcrete.py is ported from DiariZen
+training/karna_train/hardconcrete.py is ported from DiariZen
 (https://github.com/BUTSpeechFIT/DiariZen, diarizen/models/module/wav2vec2/hardconcrete.py),
 released under the MIT License; see that repository for its copyright notice.
 

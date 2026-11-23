@@ -3,7 +3,7 @@
 The pipeline that produced the Karna models. It is kept apart from the `karna` package, which never imports anything from here.
 
 ```bash
-pip install -e ".[train]"                 # from the repo root
+bash training/setup.sh                    # from the repo root
 cp training/local.env.example training/local.env
 training/run.sh base                      # or: large
 ```

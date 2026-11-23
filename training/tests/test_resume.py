@@ -8,7 +8,7 @@ import torch
 import yaml
 
 from karna_train import ASR_ROOT, PROJECT_ROOT
-from karna.model import ArchConfig, PrunableCTC
+from karna_train.model import ArchConfig, PrunableCTC
 from karna_train.train import Trainer, load_config
 
 pytestmark = pytest.mark.skipif(

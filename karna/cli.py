@@ -1,35 +1,89 @@
-"""Command line: ``karna transcribe audio.wav [...]`` and ``karna models``."""
+"""The ``karna`` command: transcribe, models, download, serve."""
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
+import json
 import sys
 
-from .hub import DEFAULT_MODEL, MODELS
+from .models import DEFAULT_MODEL, MODELS
+
+
+def _transcribe(args: argparse.Namespace) -> None:
+    from .asr import load_model
+
+    asr = load_model(args.model, args.device)
+    texts = asr.transcribe(list(args.audio), batch_size=args.batch_size)
+    if args.format == "json":
+        rows = [{"file": path, "text": text} for path, text in zip(args.audio, texts)]
+        print(json.dumps({"model": asr.name, "device": asr.device, "results": rows}, ensure_ascii=False, indent=2))
+        return
+    for path, text in zip(args.audio, texts):
+        print(text if args.format == "txt" else f"{path}\t{text}")
+        sys.stdout.flush()
+
+
+def _models(args: argparse.Namespace) -> None:
+    for name, m in MODELS.items():
+        print(f"{name}\t{m['params']}\thttps://huggingface.co/{m['repo']}\t{m['about']}")
+
+
+def _download(args: argparse.Namespace) -> None:
+    from .inference.hub import fetch
+    from .models import source
+
+    for name in args.models or [DEFAULT_MODEL]:
+        print(f"{name}\t{fetch(source(name), args.device)}")
+
+
+def _serve(args: argparse.Namespace) -> None:
+    missing = [m for m in ("fastapi", "uvicorn", "multipart") if importlib.util.find_spec(m) is None]
+    if missing:
+        sys.exit(f"`karna serve` needs the server extra (missing: {', '.join(missing)}):\n"
+                 "  pip install 'netra-karna[cpu,server]'")
+    from .server import run
+
+    run(host=args.host, port=args.port, model=args.model, device=args.device)
 
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="karna", description="Khmer and English speech recognition.")
+    ap.add_argument("--version", action="version", version=f"%(prog)s {_version()}")
     sub = ap.add_subparsers(dest="command", required=True)
-    t = sub.add_parser("transcribe", help="print one line per file: <path><TAB><text>")
+
+    t = sub.add_parser("transcribe", help="transcribe audio files")
     t.add_argument("audio", nargs="+", help="audio files (wav, flac, ogg, mp3, ...)")
-    t.add_argument("--model", default=DEFAULT_MODEL, help=f"short name, Hugging Face id or path (default {DEFAULT_MODEL})")
-    t.add_argument("--device", help="cuda or cpu (default: cuda when available)")
+    t.add_argument("--model", default=DEFAULT_MODEL,
+                   help=f"{' or '.join(MODELS)}, a Hugging Face id or a model folder (default {DEFAULT_MODEL})")
+    t.add_argument("--device", help="auto, cpu, cuda, tensorrt or openvino (default: $KARNA_DEVICE, else auto)")
     t.add_argument("--batch-size", type=int, default=8)
-    sub.add_parser("models", help="list the released models")
+    t.add_argument("--format", choices=["tsv", "txt", "json"], default="tsv",
+                   help="tsv: <path><TAB><text> per file (default); txt: the text only; json: one document")
+    t.set_defaults(func=_transcribe)
+
+    sub.add_parser("models", help="list the released models").set_defaults(func=_models)
+
+    d = sub.add_parser("download", help="download models now, for offline use later")
+    d.add_argument("models", nargs="*", help=f"default: {DEFAULT_MODEL}")
+    d.add_argument("--device", default="cpu", help="fetch only the files this device needs (default cpu)")
+    d.set_defaults(func=_download)
+
+    s = sub.add_parser("serve", help="start the web app and REST API (needs the [server] extra)")
+    s.add_argument("--host", help="default: $KARNA_HOST, else 127.0.0.1")
+    s.add_argument("--port", type=int, help="default: $KARNA_PORT, else 8000")
+    s.add_argument("--model", help="model loaded at start (default: $KARNA_MODEL, else karna-base)")
+    s.add_argument("--device", help="default: $KARNA_DEVICE, else auto")
+    s.set_defaults(func=_serve)
+
     args = ap.parse_args(argv)
+    args.func(args)
 
-    if args.command == "models":
-        for name, repo in MODELS.items():
-            print(f"{name}\thttps://huggingface.co/{repo}")
-        return
 
-    from .asr import load_model
+def _version() -> str:
+    from . import __version__
 
-    asr = load_model(args.model, args.device)
-    for path, text in zip(args.audio, asr.transcribe(list(args.audio), batch_size=args.batch_size)):
-        print(f"{path}\t{text}")
-        sys.stdout.flush()
+    return __version__
 
 
 if __name__ == "__main__":

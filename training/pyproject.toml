@@ -1,0 +1,37 @@
+# Not published: the training, pruning, evaluation and export pipeline behind Karna.
+# Install it from a checkout next to the package (the ONNX export runs the exported
+# folder through the karna package to check it):
+#   bash training/setup.sh       (or: pip install -e ".[cpu]" -e training)
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "karna-train"
+version = "0.0.0"
+description = "Training, structured pruning, evaluation and ONNX export for Karna."
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "netra-karna",
+    "torch>=2.1",
+    "safetensors",
+    "numpy",
+    "tqdm",
+    "pyyaml",
+    "pyarrow",
+    "editdistance",
+    "datasets",
+    "huggingface_hub",
+    "onnx",              # exporting models for the package
+    "onnxscript",
+    # only to read the stock Omnilingual checkpoints (python -m karna_train.convert)
+    "fairseq2==0.8.1",
+    "omnilingual-asr==0.1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["karna_train*"]

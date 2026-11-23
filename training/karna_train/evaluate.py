@@ -14,7 +14,7 @@ import editdistance
 import torch
 
 from .data import EvalItem, eval_batches
-from karna.model import PrunableCTC, normalize_audio_
+from karna_train.model import PrunableCTC, normalize_audio_
 from karna.text import CharVocab
 
 

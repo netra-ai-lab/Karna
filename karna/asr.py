@@ -4,76 +4,61 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import torch
-
 from .audio import AudioInput, load_audio
-from .hub import DEFAULT_MODEL, load_weights, resolve
-from .model import ArchConfig, PrunableCTC, normalize_audio_
-from .text import CharVocab
+from .models import DEFAULT_MODEL, get
 
 
 class Karna:
-    """A Khmer + English CTC model with its vocabulary.
+    """A Khmer + English CTC model on ONNX Runtime.
 
     >>> asr = Karna.from_pretrained("karna-base")
     >>> asr.transcribe("speech.wav")
     """
 
-    def __init__(self, model: PrunableCTC, vocab: CharVocab, device: str | torch.device | None = None) -> None:
-        if device is None:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.device = torch.device(device)
-        self.model = model.eval().to(self.device)
-        self.vocab = vocab
+    def __init__(self, recognizer) -> None:
+        self.recognizer = recognizer
 
     @classmethod
-    def from_pretrained(cls, name_or_path: str | Path = DEFAULT_MODEL, device: str | torch.device | None = None) -> Karna:
-        arch, state, vocab_path = load_weights(resolve(name_or_path))
-        model = PrunableCTC(ArchConfig.from_dict(arch))
-        model.load_state_dict(state)
-        vocab = CharVocab.load(vocab_path) if vocab_path else CharVocab.default()
-        return cls(model, vocab, device)
+    def from_pretrained(cls, name_or_path: str | Path = DEFAULT_MODEL, device: str | None = None) -> Karna:
+        return cls(get(name_or_path, device))
 
     @property
-    def num_parameters(self) -> int:
-        return sum(p.numel() for p in self.model.parameters())
+    def device(self) -> str:
+        return self.recognizer.device
 
-    @torch.no_grad()
+    @property
+    def name(self) -> str:
+        return self.recognizer.name
+
+    @property
+    def num_parameters(self) -> int | None:
+        return self.recognizer.num_parameters
+
+    @property
+    def sample_rate(self) -> int:
+        return self.recognizer.sample_rate
+
     def transcribe(self, audio: AudioInput | list[AudioInput], batch_size: int = 8) -> str | list[str]:
         """Text for one input, or a list of texts for a list of inputs (same order).
 
-        An input is a file path, a 16 kHz waveform (numpy array or tensor), or a
+        An input is a file path, the file's bytes, a 16 kHz waveform (numpy array or tensor), or a
         ``(waveform, sample_rate)`` tuple. Each file is decoded in one pass, so very long
         recordings should be split into utterances first.
         """
         single = not isinstance(audio, list)
         items = [audio] if single else audio
-        wavs = [load_audio(a) for a in items]
-        order = sorted(range(len(wavs)), key=lambda i: len(wavs[i]), reverse=True)  # less padding per batch
-        texts: list[str] = [""] * len(wavs)
-        for start in range(0, len(order), batch_size):
-            idx = order[start:start + batch_size]
-            lens = torch.tensor([len(wavs[i]) for i in idx])
-            batch = torch.zeros(len(idx), int(lens.max()))
-            for row, i in enumerate(idx):
-                batch[row, : len(wavs[i])] = wavs[i]
-            normalize_audio_(batch, lens)
-            batch, lens = batch.to(self.device), lens.to(self.device)
-            with torch.autocast(self.device.type, dtype=torch.bfloat16, enabled=self.device.type == "cuda"):
-                out = self.model(batch, lens)
-            ids = out["logits"].argmax(-1).cpu()
-            for row, i in enumerate(idx):
-                texts[i] = self.vocab.greedy(ids[row, : int(out["frame_lens"][row])].tolist())
+        wavs = [load_audio(a, self.sample_rate) for a in items]
+        texts = self.recognizer.transcribe(wavs, batch_size=batch_size)
         return texts[0] if single else texts
 
 
-def load_model(name_or_path: str | Path = DEFAULT_MODEL, device: str | torch.device | None = None) -> Karna:
-    """``Karna.from_pretrained``: a short name (``karna-base``, ``karna-large``, ``teacher-300m``,
-    ``teacher-1b``), a Hugging Face repo id, a release folder or a training checkpoint."""
+def load_model(name_or_path: str | Path = DEFAULT_MODEL, device: str | None = None) -> Karna:
+    """``Karna.from_pretrained``: a short name (``karna-base``, ``karna-large``), a Hugging Face
+    repo id, or a local ONNX model folder. ``device``: auto (default), cpu, cuda, tensorrt, openvino."""
     return Karna.from_pretrained(name_or_path, device)
 
 
 def transcribe(audio: AudioInput | list[AudioInput], model: str | Path = DEFAULT_MODEL,
-               device: str | torch.device | None = None, batch_size: int = 8) -> str | list[str]:
-    """One-shot helper: load ``model`` and transcribe ``audio``. Reuse ``load_model`` for many calls."""
+               device: str | None = None, batch_size: int = 8) -> str | list[str]:
+    """Two lines to a result: ``karna.transcribe("speech.wav")``. The model is loaded once per process."""
     return load_model(model, device).transcribe(audio, batch_size=batch_size)
