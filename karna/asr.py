@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .audio import AudioInput, load_audio
 from .models import DEFAULT_MODEL, get
+from .streaming import StreamingTranscriber
 
 
 class Karna:
@@ -50,6 +51,22 @@ class Karna:
         wavs = [load_audio(a, self.sample_rate) for a in items]
         texts = self.recognizer.transcribe(wavs, batch_size=batch_size)
         return texts[0] if single else texts
+
+    def stream(self, partial_interval_s: float = 0.8, **endpointer_opts) -> StreamingTranscriber:
+        """Live transcription: feed 16 kHz mono float32 chunks, get partial and final text as you go.
+
+        >>> live = asr.stream()
+        >>> for chunk in chunks:
+        ...     for event in live.feed(chunk):
+        ...         print(event["type"], event["text"])
+        >>> live.finish(); live.text
+
+        Speech is split into utterances at pauses (``min_silence_ms``, default 600) and at
+        ``max_segment_s`` (default 15); see ``karna.streaming`` for the other options.
+        """
+        return StreamingTranscriber(lambda wav: self.recognizer.transcribe([wav])[0],
+                                    partial_interval_s=partial_interval_s, sample_rate=self.sample_rate,
+                                    **endpointer_opts)
 
 
 def load_model(name_or_path: str | Path = DEFAULT_MODEL, device: str | None = None) -> Karna:

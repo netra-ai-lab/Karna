@@ -9,7 +9,8 @@ never imported by `karna/`.
 
 - `karna/models.py`: short name → HF repo, the `onnx` folder in it, and the pinned `revision`. `KARNA_BUNDLES` points at local model folders.
 - `karna/inference/`: `session.py` and `hub.py` from the kit (keep in sync with Netra-OCR); `recognizer.py` is Karna's own (normalise → pad → graph → greedy CTC).
-- `karna/server/`: FastAPI + static UI, with one worker thread; jobs are directories under `KARNA_DATA_DIR`.
+- `karna/streaming.py`: live transcription (`Karna.stream()`): energy-VAD `Endpointer` plus partial/final re-decoding, numpy only.
+- `karna/server/`: FastAPI + static UI, with one worker thread; jobs are directories under `KARNA_DATA_DIR`. `WebSocket /v1/stream` (`LiveSession` in `app.py`) runs its decodes on the same worker via `JobStore.submit` (priority queue: live first, then file jobs) and saves each session with `JobStore.record`. The browser side is `static/js/stream.js` + `pcm-worklet.js`.
 - `training/karna_train/export_onnx.py` + `training/export.sh`: PyTorch release → ONNX model folder, with a parity check. `run.sh` runs it after `06_export_pruned.py`.
 - `docker/`: CPU image with both models baked in; `smoke_test.py` runs at build time.
 - Docs: `docs/USAGE.md` (every flag, route and env var), `docs/RELEASING.md` (release steps), `THIRD_PARTY_LICENSES.md`.
@@ -21,6 +22,11 @@ never imported by `karna/`.
 - The graph ends in the per-frame argmax (`ids`, `frame_lens`), so [N, T, 9812] logits never leave the session. The attention mask is always built in the wrapper, because `PrunableCTC.forward` builds it only when something is padded (a data-dependent branch).
 - fp32 ONNX only. **int8 rejected** (2026-11-23, karna-base, `onnxruntime.quantization.quantize_dynamic`, QInt8 weights): 4.4× slower on CPU (340 s vs 77 s for the 40 parity clips), Khmer CER 0.205 → 0.248 against references, and only 6/40 transcripts identical to fp32. **fp16 storage not tried yet**: it would halve the download, but would need fp32 compute (Cast after each initializer) and identical text before shipping.
 - The server refuses audio over 30 s (`KARNA_MAX_SECONDS`): training used 1–25 s clips and each file is decoded in one pass.
+- 2026-11-23: live transcription is **endpointed re-decoding**, not chunked state: the model has full attention and per-utterance normalisation, so there is nothing to carry between chunks. Partials re-decode the whole open utterance (latest wins); finals are offline decodes of the closed segment. Tuned on the golden clips:
+  - `min_segment_s=5`: a 600 ms pause only closes a segment of 5 s or more, and 1.5 s closes any. Cutting at every 0.75 s pause gave a 2.4 s Khmer piece that karna-large returned in Latin script.
+  - 0.5 s of zero padding on each side of every decode. The same quiet clip as a bare 7 s segment came back garbled from large, and exact again with padding. Cropping in more real background did not help.
+  - `abs_floor=5e-4`, `ratio=4`: FLEURS km 0000 has speech at RMS 0.002–0.004, and 0.004 missed it entirely. Digital-silence frames never set the noise floor.
+  - Result: 4/8 (clip, model) pairs identical to offline, the rest 1–5 characters apart (`test_streaming_matches_offline`, `--slow`).
 - The CLI keeps `tsv` (`path<TAB>text`) as its default output, so scripts written for the PyTorch CLI keep working.
 
 ## Measured
@@ -36,7 +42,9 @@ Machine: AMD Zen 3 laptop CPU (AMD64 Family 25 Model 80), 16 threads, Windows 11
 
 So on CPU, ONNX runs at the same speed as PyTorch: no speedup, so don't claim one. The gains are install size (wheel 0.16 MB, about 195 MB of site-packages with `[cpu,server]`, no torch) and the serving channels. Almost all of the time is the graph; load, prep and decode are each under 0.02 s per minute.
 
-Tests (2026-11-23): `pytest tests training/tests`: 29 passed, 8 skipped (CUDA-only). `pytest tests --slow`: 19 passed (golden transcripts identical for both models). A clean venv from the wheel passed `docker/smoke_test.py`.
+Tests (2026-11-23, with streaming): `pytest tests training/tests`: 42 passed, 10 skipped (CUDA-only and `--slow`). `pytest tests --slow`: 34 passed (golden transcripts identical for both models; streaming within 15 % of the offline text).
+
+Live, real-time pacing over the WebSocket (`/v1/stream`, same laptop): karna-base partials arrive about every 1 s and finals about 1.1 s after speech ends; karna-large finals 2–4 s after, with partials spreading out as the utterance grows. Checked in Chrome with a clip fed in as the microphone; a real microphone is **untested**. A clean venv from the wheel passed `docker/smoke_test.py`.
 
 ## Pitfalls
 

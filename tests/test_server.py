@@ -120,3 +120,91 @@ def test_jobs_survive_restart(tmp_path):
         job = c.post("/v1/transcribe?wait=true", files={"file": ("a.wav", wav_bytes())}).json()
     with TestClient(create_app(settings, FakeEngine("karna-base", "cpu"))) as c:
         assert c.get(f"/v1/jobs/{job['id']}").json()["result"]["text"] == job["result"]["text"]
+
+
+# ---- live transcription (/v1/stream)
+
+def pcm16(signal):
+    return (np.clip(signal, -1, 1) * 32767).astype("<i2").tobytes()
+
+
+def speech_like(rate=16000):
+    t = np.arange(int(1.5 * rate)) / rate
+    burst = 0.3 * np.sin(2 * np.pi * 220 * t)
+    gap = np.zeros(2 * rate)  # over 1.5 s, so the two bursts are two segments
+    return np.concatenate([gap[:8000], burst, gap, burst, gap[:4000]]).astype(np.float32)
+
+
+def stream(client, chunks, start=None):
+    """Run one live session; returns every message the server sent."""
+    with client.websocket_connect("/v1/stream") as ws:
+        ws.send_json(start or {"type": "start"})
+        messages = [ws.receive_json()]
+        assert messages[0]["type"] == "ready", messages
+        for chunk in chunks:
+            ws.send_bytes(chunk)
+        ws.send_json({"type": "stop"})
+        while messages[-1]["type"] not in ("done", "error"):
+            messages.append(ws.receive_json())
+    return messages
+
+
+def test_stream(client):
+    data = pcm16(speech_like())
+    chunks = [data[i:i + 3201] for i in range(0, len(data), 3201)]  # odd sizes split samples
+    messages = stream(client, chunks, {"type": "start", "model": "karna-large"})
+    finals = [m for m in messages if m["type"] == "final" and m["text"]]
+    assert [f["segment"] for f in finals] == [0, 1]
+    assert finals[0]["text"].startswith("karna-large: ") and finals[0]["start"] < finals[0]["end"] <= finals[1]["start"]
+    done = messages[-1]
+    assert done["type"] == "done" and done["reason"] == "stop"
+    assert done["text"] == " ".join(f["text"] for f in finals)
+    job = done["job"]
+    assert job["status"] == "done" and job["live"] and job["filename"].startswith("Live ")
+    assert job["result"]["text"] == done["text"] and len(job["result"]["segments"]) == 2
+    assert job["duration_s"] == pytest.approx(len(data) / 2 / 16000, abs=1e-3)
+    assert client.get("/v1/jobs").json()[0]["id"] == job["id"]
+    assert client.get(f"/v1/jobs/{job['id']}/export?format=txt").text == done["text"] + "\n"
+
+
+def test_stream_silence_saves_nothing(client):
+    messages = stream(client, [pcm16(np.zeros(16000, np.float32))])
+    assert messages[-1] == {"type": "done", "text": "", "job": None, "reason": "stop"}
+    assert client.get("/v1/jobs").json() == []
+
+
+def test_stream_limit(tmp_path):
+    settings = Settings(data_dir=tmp_path, max_stream_seconds=2)
+    with TestClient(create_app(settings, FakeEngine("karna-base", "cpu"))) as c:
+        with c.websocket_connect("/v1/stream") as ws:
+            ws.send_json({"type": "start"})
+            assert ws.receive_json()["max_seconds"] == 2
+            ws.send_bytes(pcm16(speech_like()))
+            msg = ws.receive_json()
+            while msg["type"] != "done":
+                msg = ws.receive_json()
+        assert msg["reason"] == "limit" and msg["job"]["duration_s"] == 2.0
+
+
+def test_stream_rejections(tmp_path):
+    from starlette.websockets import WebSocketDisconnect
+
+    settings = Settings(data_dir=tmp_path, api_key="s3cret")
+    with TestClient(create_app(settings, FakeEngine("karna-base", "cpu"))) as c:
+        with c.websocket_connect("/v1/stream") as ws:
+            ws.send_json({"type": "start", "api_key": "wrong"})
+            with pytest.raises(WebSocketDisconnect) as e:
+                ws.receive_json()
+        assert e.value.code == 1008
+        with c.websocket_connect("/v1/stream") as ws:
+            ws.send_json({"type": "start", "api_key": "s3cret", "model": "nope"})
+            assert ws.receive_json()["type"] == "error"
+        with c.websocket_connect("/v1/stream", headers={"X-API-Key": "s3cret"}) as ws:
+            ws.send_json({"type": "start"})
+            assert ws.receive_json()["type"] == "ready"
+        with c.websocket_connect("/v1/stream") as ws:
+            ws.send_bytes(b"\x00\x00")
+            with pytest.raises(WebSocketDisconnect) as e:
+                ws.receive_json()
+        assert e.value.code == 1003
+        assert c.get("/v1/info").json()["streaming"] is True

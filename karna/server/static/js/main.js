@@ -1,12 +1,16 @@
 // Karna web app: plain ES module, no build step. Talks to the REST API only.
 import { recordWav } from "./record.js";
+import { streamMic } from "./stream.js";
 
 const $ = (sel) => document.querySelector(sel);
-const state = { info: null, jobs: [], polling: new Set(), recorder: null };
+const state = { info: null, jobs: [], polling: new Set(), recorder: null, live: null };
+
+function apiKey() {
+  try { return localStorage.getItem("karna.key") || ""; } catch { return ""; /* storage blocked */ }
+}
 
 function keyHeader() {
-  let key = "";
-  try { key = localStorage.getItem("karna.key") || ""; } catch { /* storage blocked */ }
+  const key = apiKey();
   return key ? { "X-API-Key": key } : {};
 }
 
@@ -185,7 +189,9 @@ $("#key").addEventListener("change", (e) => {
 $("#record").addEventListener("click", async () => {
   const btn = $("#record"), label = $("#record-label");
   if (state.recorder) { state.recorder.stop(); return; }
+  if (state.live) return;
   showError("");
+  $("#live-btn").disabled = true;
   try {
     const maxSeconds = state.info?.max_seconds || 30;
     state.recorder = await recordWav({
@@ -203,6 +209,74 @@ $("#record").addEventListener("click", async () => {
     state.recorder = null;
     btn.setAttribute("aria-pressed", "false");
     label.textContent = "Record";
+    $("#live-btn").disabled = false;
+  }
+});
+
+// ── live transcription ─────────────────────────────────────────────────
+// Finals never change; the partial (grey) is replaced by each newer one and cleared by its final.
+function renderLive(finals, partial) {
+  const text = finals.filter(Boolean).join(" ");
+  $("#live-final").textContent = text;
+  $("#live-partial").textContent = partial;
+  $("#live-empty").hidden = Boolean(text || partial);
+  const box = $("#live .live-text");
+  box.scrollTop = box.scrollHeight;
+}
+
+$("#live-btn").addEventListener("click", async () => {
+  const btn = $("#live-btn"), label = $("#live-label"), status = $("#live-status");
+  if (state.live) { state.live.stop(); label.textContent = "Finishing…"; btn.disabled = true; return; }
+  if (state.recorder) return;
+  showError("");
+  const finals = [];          // by segment id
+  let partial = "", partialId = -1;
+  const model = $("#model").value;
+  const setStatus = (cls, text) => { status.className = `status ${cls}`; status.textContent = text; };
+  setStatus("status-running", "Connecting…");
+  $("#live-meta").textContent = model;
+  renderLive(finals, "");
+  $("#live").hidden = false;
+  $("#record").disabled = true;
+  $("#model").disabled = true;
+  try {
+    state.live = await streamMic({
+      model,
+      apiKey: apiKey(),
+      maxSeconds: state.info?.max_stream_seconds || 600,
+      onTick: (s) => { label.textContent = `Stop · ${s.toFixed(0)} s`; },
+      onMessage: (msg) => {
+        if (msg.type === "ready") setStatus("status-done", "Listening");
+        else if (msg.type === "partial") {
+          if (msg.segment >= partialId) { partial = msg.text; partialId = msg.segment; }
+        } else if (msg.type === "final") {
+          finals[msg.segment] = msg.text;
+          if (msg.segment >= partialId) { partial = ""; partialId = msg.segment; }
+        }
+        renderLive(finals, partial);
+      },
+    });
+    btn.setAttribute("aria-pressed", "true");
+    label.textContent = "Stop · 0 s";
+    const done = await state.live.done;
+    if (done.job) {
+      state.jobs = [done.job, ...state.jobs.filter((j) => j.id !== done.job.id)];
+      renderJobs();
+      $("#live").hidden = true;
+      if (done.reason === "limit") toast(`Stopped at the ${state.info?.max_stream_seconds || 600} s limit; saved below`);
+    } else {
+      setStatus("status-queued", "No speech heard");
+    }
+  } catch (e) {
+    showError(e.name === "NotAllowedError" ? "Microphone access was refused." : e.message);
+    setStatus("status-error", "Stopped");
+  } finally {
+    state.live = null;
+    btn.disabled = false;
+    btn.setAttribute("aria-pressed", "false");
+    label.textContent = "Live";
+    $("#record").disabled = false;
+    $("#model").disabled = false;
   }
 });
 
@@ -219,6 +293,14 @@ function renderApi() {
       `curl${auth} -OJ "${origin}/v1/jobs/<id>/export?format=txt"`],
     ["List and delete jobs", "", `curl${auth} ${origin}/v1/jobs\ncurl${auth} -X DELETE ${origin}/v1/jobs/<id>`],
     ["Server and models", "Version, device, whether the models are loaded, and the limits.", `curl ${origin}/v1/info`],
+    ["Live transcription (WebSocket)",
+      "Send a start message, then binary frames of 16 kHz mono int16 PCM, then a stop message. " +
+      "You get partial text (may still change), final text per utterance, and a done message with the saved job.",
+      `ws = new WebSocket("${origin.replace(/^http/, "ws")}/v1/stream")\n` +
+      `ws.send(JSON.stringify({type: "start", model: "karna-base"${state.info?.auth ? ', api_key: KEY' : ""}}))\n` +
+      `ws.send(int16Pcm.buffer)            // repeat, about 100 ms each\n` +
+      `ws.send(JSON.stringify({type: "stop"}))\n` +
+      `// <- {"type":"partial","segment":0,"text":"..."}  {"type":"final",...}  {"type":"done","job":{...}}`],
   ];
   const root = $("#api-examples");
   root.replaceChildren(...routes.map(([title, text, code]) => {

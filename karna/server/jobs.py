@@ -8,10 +8,14 @@
 Requests enqueue a job and return at once; the worker runs jobs one at a time, so one CPU or
 GPU serves one job at a time and models are never shared across threads. Jobs queued or
 running when the server stopped are queued again at start.
+
+Live transcription (``/v1/stream``) runs its decodes on the same worker through ``submit``, ahead
+of queued file jobs, and saves each finished session as a done job with ``record``.
 """
 
 from __future__ import annotations
 
+import itertools
 import json
 import logging
 import queue
@@ -20,12 +24,16 @@ import shutil
 import threading
 import time
 import uuid
+from concurrent.futures import Future
 from pathlib import Path
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
 JOB_ID = re.compile(r"^[0-9a-f]{12}$")
+
+#: worker queue priorities: live decodes first, then file jobs, then the stop sentinel
+LIVE, FILE, STOP = 0, 1, 2
 
 
 class Engine:
@@ -57,7 +65,8 @@ class JobStore:
         self.root.mkdir(parents=True, exist_ok=True)
         self.engine = engine
         self.keep = keep
-        self.queue: queue.Queue[str | None] = queue.Queue()
+        self.queue: queue.PriorityQueue[tuple[int, int, Any]] = queue.PriorityQueue()
+        self._seq = itertools.count()
         self.lock = threading.Lock()
         self.done_events: dict[str, threading.Event] = {}
         self.thread: threading.Thread | None = None
@@ -94,6 +103,9 @@ class JobStore:
 
     # ---- API
 
+    def _enqueue(self, priority: int, item: Any) -> None:
+        self.queue.put((priority, next(self._seq), item))
+
     def create(self, data: bytes, filename: str, model: str, duration_s: float) -> dict:
         job_id = uuid.uuid4().hex[:12]
         folder = self.path(job_id)
@@ -104,9 +116,29 @@ class JobStore:
         with self.lock:
             self._write(job)
             self.done_events[job_id] = threading.Event()
-        self.queue.put(job_id)
+        self._enqueue(FILE, job_id)
         self._prune()
         return job
+
+    def record(self, filename: str, model: str, duration_s: float, result: dict) -> dict:
+        """Save a finished transcript (a live session) as a done job; no audio is kept."""
+        job_id = uuid.uuid4().hex[:12]
+        folder = self.path(job_id)
+        folder.mkdir()
+        now = time.time()
+        (folder / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        job = {"id": job_id, "status": "done", "model": model, "filename": filename, "live": True,
+               "duration_s": round(duration_s, 3), "created": now, "started": now, "finished": now, "error": None}
+        with self.lock:
+            self._write(job)
+        self._prune()
+        return self.read(job_id)
+
+    def submit(self, fn: Callable[[], Any]) -> Future:
+        """Run ``fn`` on the worker thread ahead of queued file jobs (live decodes)."""
+        future: Future = Future()
+        self._enqueue(LIVE, (fn, future))
+        return future
 
     def list(self) -> list[dict]:
         jobs = []
@@ -144,14 +176,14 @@ class JobStore:
                 if (self.path(job["id"]) / "upload.bin").exists():
                     self._update(job["id"], status="queued")
                     self.done_events[job["id"]] = threading.Event()
-                    self.queue.put(job["id"])
+                    self._enqueue(FILE, job["id"])
                 else:
                     self._update(job["id"], status="failed", error="the server stopped while this job ran")
         self.thread = threading.Thread(target=self._work, args=(decode,), name="karna-worker", daemon=True)
         self.thread.start()
 
     def stop(self) -> None:
-        self.queue.put(None)
+        self._enqueue(STOP, None)
 
     def _work(self, decode: Callable[[bytes], object]) -> None:
         try:
@@ -161,10 +193,18 @@ class JobStore:
             logger.exception("loading %s failed", self.engine.default_model)
             self.engine.error = f"{type(e).__name__}: {e}"
         while True:
-            job_id = self.queue.get()
-            if job_id is None:
+            _, _, item = self.queue.get()
+            if item is None:
                 return
-            self._run(job_id, decode)
+            if isinstance(item, tuple):
+                fn, future = item
+                if future.set_running_or_notify_cancel():
+                    try:
+                        future.set_result(fn())
+                    except BaseException as e:  # noqa: BLE001 - handed to the waiting request
+                        future.set_exception(e)
+            else:
+                self._run(item, decode)
 
     def _run(self, job_id: str, decode: Callable[[bytes], object]) -> None:
         folder = self.path(job_id)

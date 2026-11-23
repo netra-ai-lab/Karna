@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Karna</title>
-  <meta name="description" content="Khmer and English speech recognition on your own machine. Upload or record audio, get text.">
+  <meta name="description" content="Khmer and English speech recognition on your own machine. Upload or record audio, or transcribe live as you speak.">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="preload" href="/static/fonts/Figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/tokens.css">
@@ -40,8 +40,19 @@
             <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5V15" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
             <span id="record-label">Record</span>
           </button>
+          <button type="button" class="btn btn-outline" id="live-btn" aria-pressed="false" title="Text appears as you speak">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 8h1.5M5 5v6M8 2.5v11M11 5v6M14 8h-1.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            <span id="live-label">Live</span>
+          </button>
           <label class="field key" id="key-field" hidden><span>API key</span><input id="key" class="input" type="password" autocomplete="off"></label>
           <span class="error-text" id="upload-error" role="alert"></span>
+        </div>
+        <div class="live" id="live" hidden>
+          <div class="live-head">
+            <span class="status status-running" id="live-status">Connecting…</span>
+            <span class="meta" id="live-meta"></span>
+          </div>
+          <p class="live-text" aria-live="polite"><span class="live-final" id="live-final"></span><span class="live-partial" id="live-partial"></span><span class="live-empty" id="live-empty">Start speaking; text appears as you talk.</span></p>
         </div>
       </div>
 
@@ -50,7 +61,7 @@
         <p class="meta">Kept on this machine; nothing leaves it.</p>
       </div>
       <ol class="jobs" id="jobs"></ol>
-      <p class="empty" id="empty">Nothing yet. Transcripts of what you upload or record appear here.</p>
+      <p class="empty" id="empty">Nothing yet. Transcripts of what you upload, record or say live appear here.</p>
     </section>
 
     <section class="page" data-view="api" hidden>

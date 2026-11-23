@@ -199,6 +199,10 @@ asr = karna.load_model("karna-base")              # or "karna-large", a Hugging 
 print(asr.transcribe("speech.wav"))             # one file -> one string
 print(asr.transcribe(["a.wav", "b.flac"]))      # a list -> a list, batched
 print(asr.transcribe((waveform, 44100)))        # a numpy array with its sample rate
+
+live = asr.stream()                             # live: feed 16 kHz chunks as they arrive
+for event in live.feed(chunk):                  # partial text, then final text per utterance
+    print(event["type"], event["text"])
 ```
 
 **Command line.** Each file prints as one line: the path, a tab, then the text.
@@ -218,6 +222,8 @@ curl -F file=@speech.wav -F model=karna-large http://localhost:8000/v1/transcrib
 curl http://localhost:8000/v1/jobs/<id>                                            # until "status": "done"
 curl -o speech.txt "http://localhost:8000/v1/jobs/<id>/export?format=txt"          # or json
 ```
+
+**Live.** The web app's **Live** button shows text as you speak. Behind it, the `/v1/stream` WebSocket takes 16 kHz PCM frames and sends back partial and final text. Each utterance is decoded again as it grows, and the session is saved as a job when you stop. See [docs/USAGE.md](docs/USAGE.md#live-transcription-v1stream).
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |

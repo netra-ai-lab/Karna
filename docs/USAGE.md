@@ -1,6 +1,6 @@
 # Using Karna
 
-Karna runs in four ways. All of them use the same ONNX models and give the same text.
+Karna runs in four ways. All of them use the same ONNX models and give the same text. Python and the server can also transcribe live, as audio arrives ([Python](#live-transcription), [WebSocket](#live-transcription-v1stream)).
 
 | Way in | Install | For |
 | --- | --- | --- |
@@ -35,6 +35,41 @@ An **input** is:
 - the file's bytes;
 - a mono 16 kHz waveform, as a numpy array (a torch tensor also works; Karna never imports torch);
 - a `(waveform, sample_rate)` tuple, resampled to 16 kHz with soxr.
+
+### Live transcription
+
+`Karna.stream()` gives text while audio is still arriving, from a microphone or a socket:
+
+```python
+live = asr.stream()                          # karna.StreamingTranscriber
+for chunk in chunks:                         # mono 16 kHz float32 numpy arrays, any size
+    for event in live.feed(chunk):
+        print(event["type"], event["segment"], event["text"])
+for event in live.finish():                  # closes the last utterance
+    print(event)
+print(live.text)                             # every final, joined with spaces
+```
+
+Karna is an offline model with no streaming state, so live text comes from **endpointed re-decoding**:
+1. An energy VAD splits the audio into utterances at pauses.
+2. While an utterance is open, all of it is decoded again after every 0.8 s of new audio and sent as a `partial`, which may still change.
+3. When it closes, it is decoded once more and sent as a `final`, which never changes.
+
+| Event | |
+| --- | --- |
+| `{"type": "partial", "segment": n, "text": ...}` | The open utterance so far. A newer partial or the final for `n` replaces it. |
+| `{"type": "final", "segment": n, "text": ..., "start": s, "end": s}` | The utterance's text, and its place in the stream in seconds. An empty `text` means the segment was noise: clear its partial. |
+
+An utterance closes:
+- at a 600 ms pause once it holds 5 s of audio;
+- at a 1.5 s pause, whatever its length;
+- at 15 s, at its quietest point in the last 2 s.
+
+Short pieces lose context: cut at every brief pause, a 2 s piece of Khmer can come back in Latin script. Each decode gets 0.5 s of silence on both sides, which brought karna-large back to the offline text on a quiet FLEURS clip.
+
+The options are keyword arguments to `stream()`: `partial_interval_s`, `pad_ms`, `min_silence_ms`, `min_segment_s`, `long_silence_ms`, `max_segment_s`, `preroll_ms`, `tail_ms`, `min_speech_ms`, `abs_floor` and `ratio` (see `karna/streaming.py`).
+
+How close it is: on the golden clips, fed in 100 ms chunks, 4 of 8 (clip, model) pairs give exactly the offline text, and the rest are 1–5 characters apart. A partial costs a decode of the whole open utterance, at the batch speed below: a 5 s utterance takes about 0.7 s with karna-base and 1.4 s with karna-large on the reference laptop CPU. A final arrives about 1 s (base) or 2–4 s (large) after the speaker stops.
 
 Stereo is averaged to mono. Each input is decoded in one pass, so split recordings longer than about 30 s into utterances first.
 
@@ -74,10 +109,41 @@ One worker thread runs the models, so jobs run one at a time, in order. A job is
 | `GET /v1/jobs/{id}` | One job: `status` is `queued`, `running`, `done` or `failed` (with `error`); the text is in `result.text` |
 | `DELETE /v1/jobs/{id}` | 204 |
 | `GET /v1/jobs/{id}/export?format=txt\|json` | The text, or the whole job, as a download |
+| `WebSocket /v1/stream` | Live transcription (below) |
 
 ```bash
 curl -F file=@speech.wav "http://localhost:8000/v1/transcribe?wait=true"
 curl -H "X-API-Key: $KEY" -F file=@speech.flac -F model=karna-large http://localhost:8000/v1/transcribe
+```
+
+### Live transcription: `/v1/stream`
+
+The web page's **Live** button uses this. Text appears as you speak, and the session is saved as a job in Recent when you stop.
+
+1. Open `ws://host:port/v1/stream` and send `{"type": "start", "model": "karna-base", "api_key": "..."}`. `model` and `api_key` are optional. A browser can't set headers on a WebSocket, so the key goes in this message; other clients may send `X-API-Key` or `Authorization: Bearer` instead.
+2. The server answers `{"type": "ready", "model", "sample_rate": 16000, "max_seconds"}`.
+3. Send binary frames of **16 kHz mono little-endian int16 PCM**, of any size; about 100 ms each works well.
+4. The server sends `partial` and `final` events, as in [Live transcription](#live-transcription) above.
+5. Send `{"type": "stop"}`. The server closes the last utterance and sends `{"type": "done", "text", "job", "reason"}`, then closes the socket. `job` is the saved job, or `null` when no speech was heard. `reason` is `stop`, `limit` (the session reached `KARNA_MAX_STREAM_SECONDS`) or `disconnect`. Saved jobs have `"live": true` and `result.segments` with times; no audio is kept.
+
+Live decodes run on the same worker as file jobs, ahead of any queued ones. A new partial is skipped while the last one is still decoding, so a slow machine sends fewer partials instead of falling behind. Close codes:
+- **1003:** the first message wasn't a start message;
+- **1008:** a missing or wrong key, or an unknown model (after an `error` event);
+- **1013:** `KARNA_MAX_STREAMS` sessions are already open.
+
+```python
+import asyncio, json, websockets   # pip install websockets
+
+async def live(pcm16: bytes):
+    async with websockets.connect("ws://localhost:8000/v1/stream") as ws:
+        await ws.send(json.dumps({"type": "start", "model": "karna-base"}))
+        await ws.recv()                                     # ready
+        for i in range(0, len(pcm16), 3200):                # 100 ms frames
+            await ws.send(pcm16[i:i + 3200])
+        await ws.send(json.dumps({"type": "stop"}))
+        async for message in ws:
+            event = json.loads(message)
+            print(event["type"], event.get("text"))
 ```
 
 Errors are JSON `{"detail": "..."}`:
@@ -102,6 +168,8 @@ Errors are JSON `{"detail": "..."}`:
 | `KARNA_MAX_SECONDS` | `30` | Longer audio is refused with 422 |
 | `KARNA_MAX_UPLOAD_MB` | `50` | Larger uploads are refused with 413 |
 | `KARNA_KEEP_JOBS` | `200` | Finished jobs kept on disk; the oldest are deleted first |
+| `KARNA_MAX_STREAM_SECONDS` | `600` | The longest live session; it then finishes as if stopped (`reason: "limit"`) |
+| `KARNA_MAX_STREAMS` | `2` | Live sessions at once; more are refused with close code 1013 |
 
 ## Devices
 

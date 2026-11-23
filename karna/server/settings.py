@@ -26,5 +26,8 @@ class Settings:
     #: longer audio is refused: each file is decoded in one pass, and training used 1-25 s clips
     max_seconds: float = field(default_factory=lambda: float(os.environ.get("KARNA_MAX_SECONDS", "30")))
     max_upload_mb: float = field(default_factory=lambda: float(os.environ.get("KARNA_MAX_UPLOAD_MB", "50")))
+    #: live transcription (WebSocket /v1/stream): longest session, and sessions at once
+    max_stream_seconds: float = field(default_factory=lambda: float(os.environ.get("KARNA_MAX_STREAM_SECONDS", "600")))
+    max_streams: int = field(default_factory=lambda: int(os.environ.get("KARNA_MAX_STREAMS", "2")))
     #: finished jobs kept on disk (oldest deleted first)
     keep_jobs: int = field(default_factory=lambda: int(os.environ.get("KARNA_KEEP_JOBS", "200")))
