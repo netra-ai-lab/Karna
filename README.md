@@ -150,7 +150,7 @@ Karna was trained on about **2,034 hours** of speech, mixed 50/50 between Khmer 
 
 The quickest way in is the Docker image: a web app and REST API with both models inside.
 
-1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) for Windows, Mac or Linux. In its settings, give it at least 4 GB of memory.
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) for Windows, Mac or Linux. In its settings, give it at least 6 GB of memory (2 GB is enough if you only use karna-base).
 2. Open a terminal (PowerShell on Windows, Terminal on Mac) and run:
 
    ```bash
@@ -165,8 +165,8 @@ The quickest way in is the Docker image: a web app and REST API with both models
 | :--- | :--- |
 | Platforms | Windows and Linux PCs (x86-64) and ARM64, including Apple Silicon Macs |
 | GPU | Not needed; runs on the CPU |
-| Download | <!-- TODO: measure the pushed image (compressed / unpacked) -->, both models included |
-| Memory | <!-- TODO: measure with docker stats (idle / transcribing with karna-large) --> |
+| Download | About 1.2 GB (1.4 GB unpacked), both models included |
+| Memory | About 0.5 GB idle, 1.7 GB with karna-base in use, 4 GB with both models in use |
 | Speed | karna-base 8.7 s and karna-large 17.0 s per minute of audio (16-thread AMD Zen 3 laptop CPU, batch 8) |
 | Internet | Not needed after the download. Audio never leaves your computer. |
 | Input | wav, flac, ogg or mp3 of Khmer or English speech, up to 30 s per file |

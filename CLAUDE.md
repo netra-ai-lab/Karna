@@ -49,7 +49,7 @@ Tests (2026-11-23): `pytest tests training/tests`: 29 passed, 8 skipped (CUDA-on
 ## Pending (each outward-facing step needs the user's go-ahead)
 
 1. Done 2026-11-23: `onnx/`, the standardised cards and `assets/header.png` are uploaded. `revision` is pinned to karna-base `563d364`, karna-large `d124eca`. `pytest --slow` passes against the published models.
-2. `docker build` (the Docker daemon wasn't running on 2026-11-23), then fill the image size and memory TODOs in the README §5 table and in `docs/RELEASING.md`.
+2. Done 2026-11-23: v0.2.0 released to PyPI (verified with a clean `[cpu]` install, golden 4/4 for both models, no torch) and GHCR (public). Measured the published image: 1.16 GB compressed, 1.42 GB unpacked, memory 0.5 GB idle / 1.7 GB with karna-base / 4.0 GB with both models (ORT keeps its arena), so the README says to give Docker 6 GB. Per 29 s clip in the container: karna-base about 4 s, karna-large about 8 s (the first karna-large call takes 19 s because it loads the model).
 3. Measure CUDA parity and speed on a GPU machine.
-4. PyPI pending publisher and the GitHub `pypi` environment (user, on the web; Chrome is not allowed on pypi.org). GHCR visibility after the first image is pushed.
-5. Branch `onnx-serving` is pushed; the user opens the PR (Chrome is not signed in to GitHub, and gh is not installed). Tag `v0.2.0` after merge.
+4. Done: PyPI trusted publisher and the GitHub `pypi` environment are set up; the GHCR image is public.
+5. Done: `onnx-serving` is fast-forwarded into `master`; tag `v0.2.0` is pushed. The merged `onnx-serving` branch can be deleted.

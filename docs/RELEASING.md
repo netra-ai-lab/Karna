@@ -60,14 +60,14 @@ If the pypi workflow fails with `400 File already exists`, that version is alrea
 
 ## Facts for the product page
 
-<!-- TODO: measure on the built image (docker images / docker stats) and name the machine. -->
+Measured on 0.2.0 (`ghcr.io/netra-ai-lab/karna:0.2.0`, amd64), on Docker Desktop 29.8 with 16 CPUs and 7.2 GB of memory, sending 29 s clips to `/v1/transcribe?wait=true`. Memory is from `docker stats` after three requests per model; ONNX Runtime keeps its working memory, so it stays there.
 
 | | |
 | :--- | :--- |
 | Package | wheel 0.16 MB (0.2.0); the models download on first use |
 | Model download | karna-base 287 MB, karna-large 871 MB (fp32 ONNX) |
-| Image | <!-- TODO: compressed / on disk --> |
-| Memory | <!-- TODO: idle / peak --> |
+| Image | 1.16 GB compressed (amd64 and arm64), 1.42 GB unpacked: models 1.1 GB, Python environment 188 MB |
+| Memory | 0.5 GB idle (karna-base loaded at start), 1.7 GB after karna-base requests, 4.0 GB with karna-large also in use. Give Docker 6 GB. |
 | Speed | karna-base 8.7 s, karna-large 17.0 s per minute of audio on the CPU (16-thread AMD Zen 3 laptop, batch 8, `scripts/benchmark.py`); PyTorch: 8.8 s and 16.7 s |
 | GPU | Not needed (CPU-only image); `pip install "netra-karna[gpu]"` for CUDA |
 | Network | None after the pull: both models are inside the image |
