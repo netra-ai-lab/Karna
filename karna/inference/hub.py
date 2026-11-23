@@ -80,8 +80,11 @@ def fetch(source: str | Path, device_kind: str | None = None) -> Path:
     return download([prefix + name for name in (CONFIG_NAME, *side_files, *needed.values())])
 
 
-def load_sessions(source: str | Path, device: str | None):
+def load_sessions(source: str | Path, device: str | None, prepare=None):
     """Fetch ``source`` and open an ONNX Runtime session per graph.
+
+    ``prepare(role, path) -> path``, if given, may swap a graph file for a derived one first
+    (Karna adds a token-bias input to its recogniser this way; see ``bias.py``).
 
     Returns ``(root, config, variant, sessions, device)``; ``device`` is where
     the sessions actually run (a GPU that fails to load falls back to "cpu").
@@ -97,5 +100,7 @@ def load_sessions(source: str | Path, device: str | None):
         path = model_file(root, name)
         if not path.exists():
             raise FileNotFoundError(f"Graph file missing: {path}")
+        if prepare is not None:
+            path = prepare(role, path)
         sessions[role] = Session(path, requested)
     return root, config, variant, sessions, next(iter(sessions.values())).device

@@ -119,8 +119,11 @@ def test_karna_stream_uses_the_recognizer():
     class FakeRecognizer:
         sample_rate = SR
 
-        def transcribe(self, wavs, batch_size=8):
+        def transcribe(self, wavs, batch_size=8, language="auto"):
             return [f"n={len(w)}" for w in wavs]
+
+        def transcribe_tail(self, wav, skip, language="auto"):
+            return f"n={len(wav) - skip}"
 
     live = Karna(FakeRecognizer()).stream()
     events = live.feed(np.concatenate([quiet(0.5), tone(1.0), quiet(1.0)])) + live.finish()
@@ -141,3 +144,23 @@ def test_speech_right_after_digital_silence():
     ep = Endpointer()
     segs = ep.push(np.concatenate([np.zeros(SR // 2, np.float32), tone(1.0), np.zeros(2 * SR, np.float32)])) + ep.flush()
     assert len(segs) == 1 and segs[0].keep and segs[0].start_s == pytest.approx(0.2, abs=0.05)
+
+
+
+def test_later_utterances_are_decoded_after_the_end_of_the_previous_one():
+    calls = []
+
+    def decode_context(wav, skip):
+        calls.append((wav, skip))
+        return "second"
+
+    live = StreamingTranscriber(lambda w: calls.append((w, 0)) or "first", decode_context=decode_context,
+                                partial_interval_s=100, context_s=1.0, pad_ms=500)
+    first = tone(2.0, amp=0.5)
+    events = feed_in_chunks(live, np.concatenate([quiet(0.5), first, quiet(2.0), tone(1.5), quiet(2.0)])) + live.finish()
+    assert [e["text"] for e in events if e["type"] == "final"] == ["first", "second"]
+    wav, skip = calls[-1]
+    assert skip == SR // 2 + SR                     # the padding, then 1 s from the end of the first utterance
+    assert not wav[:SR // 2].any() and not wav[-SR // 2:].any()
+    context = wav[SR // 2:skip]
+    assert np.abs(context[:SR // 2]).max() > 0.45   # the louder first tone (the segment ends in 0.3 s of quiet)

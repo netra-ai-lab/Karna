@@ -98,3 +98,37 @@ class CharVocab:
                 out.append(i)
             prev = i
         return self.decode(out)
+
+
+# ---- clean-up of Khmer output (``Karna.transcribe`` and live transcription apply it by default).
+# On the golden km clips, live, it took karna-large's CER from 0.195 to 0.179 in auto mode, and it
+# removes every unwritable sequence; it changed nothing else measured (scripts/stream_eval.py).
+
+_K_SIGN = "ា-៑៓៝"          # dependent vowels and signs: they follow a consonant
+_K_VOWEL = "ា-ៅ"                     # dependent vowels: one per syllable
+_REPEAT_SIGN = re.compile(rf"([{_K_SIGN}])\1+")
+_VOWEL_RUN = re.compile(f"([{_K_VOWEL}])[{_K_VOWEL}]+")
+_LOOSE_COENG = re.compile("្(?![ក-អ])")
+_LEADING_SIGN = re.compile(rf"(^|\s)[{_K_SIGN}្]+")
+_SPLIT_VOWELS = (("េា", "ោ"), ("េី", "ើ"))
+_KHMER = re.compile("[ក-៿᧠-᧿]")
+
+
+def clean_khmer(text: str) -> str:
+    """Repair what greedy CTC leaves in Khmer: sequences that can't be written, shown as ◌.
+
+    - a vowel or sign repeated back to back (``ាា``) is kept once;
+    - e + aa (or e + ii) written as two vowels becomes the one vowel they spell (``ោ``, ``ើ``);
+    - of two dependent vowels in a row, the first is kept (a syllable has one);
+    - a coeng not followed by a consonant, and vowels or signs at the start of a word, are dropped;
+    - runs of spaces become one.
+    Text without Khmer is returned with only its spaces normalised.
+    """
+    if _KHMER.search(text):
+        text = _REPEAT_SIGN.sub(r"\1", text)
+        for split, whole in _SPLIT_VOWELS:       # e + aa written as two vowels: the one vowel they make
+            text = text.replace(split, whole)
+        text = _VOWEL_RUN.sub(r"\1", text)
+        text = _LOOSE_COENG.sub("", text)
+        text = _LEADING_SIGN.sub(r"\1", text)
+    return _SPACES.sub(" ", text).strip()

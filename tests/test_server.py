@@ -25,9 +25,17 @@ class FakeEngine(Engine):
         self.device = "cpu"
         return self.loaded[name]
 
-    def transcribe(self, name, wav):
+    def transcribe(self, name, wav, language="auto"):
         self.load(name)
+        self.__dict__.setdefault("calls", []).append((name, len(wav), 0))
+        self.__dict__.setdefault("languages", []).append(language)
         return f"{name}: {len(wav)} samples"
+
+    def transcribe_tail(self, name, wav, skip, language="auto"):
+        self.load(name)
+        self.__dict__.setdefault("languages", []).append(language)
+        self.__dict__.setdefault("calls", []).append((name, len(wav), skip))
+        return f"{name}: {len(wav) - skip} samples after context"
 
 
 def wav_bytes(seconds=1.0, rate=16000, fmt="WAV"):
@@ -69,6 +77,14 @@ def test_transcribe_wait(client):
     job = r.json()
     assert job["status"] == "done" and job["result"]["text"] == "karna-base: 16000 samples"
     assert job["duration_s"] == 1.0
+
+
+def test_transcribe_language(client):
+    r = client.post("/v1/transcribe?wait=true", files={"file": ("a.wav", wav_bytes())}, data={"language": "km"})
+    assert r.json()["language"] == "km" and client.engine.languages[-1] == "km"
+    r = client.post("/v1/transcribe", files={"file": ("a.wav", wav_bytes())}, data={"language": "fr"})
+    assert r.status_code == 422 and "language" in r.json()["detail"]
+    assert client.get("/v1/info").json()["languages"] == ["auto", "km", "en"]
 
 
 def test_queue_poll_export_delete(client):
@@ -149,18 +165,34 @@ def stream(client, chunks, start=None):
     return messages
 
 
+def test_stream_drafts_from_the_chosen_model(client):
+    messages = stream(client, [pcm16(speech_like())], {"type": "start", "model": "karna-large"})
+    assert messages[0]["partial_model"] == "karna-large"
+    assert all(m["text"].startswith("karna-large: ") for m in messages if m["type"] in ("partial", "final") and m["text"])
+
+
 def test_stream(client):
     data = pcm16(speech_like())
     chunks = [data[i:i + 3201] for i in range(0, len(data), 3201)]  # odd sizes split samples
-    messages = stream(client, chunks, {"type": "start", "model": "karna-large"})
+    messages = stream(client, chunks, {"type": "start", "model": "karna-large", "language": "km",
+                                       "partial_model": "karna-base"})
+    assert messages[0]["model"] == "karna-large" and messages[0]["partial_model"] == "karna-base"
+    assert messages[0]["language"] == "km" and set(client.engine.languages) == {"km"}
     finals = [m for m in messages if m["type"] == "final" and m["text"]]
     assert [f["segment"] for f in finals] == [0, 1]
     assert finals[0]["text"].startswith("karna-large: ") and finals[0]["start"] < finals[0]["end"] <= finals[1]["start"]
+    # partials come from the requested draft model, finals from the chosen one
+    partials = [m for m in messages if m["type"] == "partial"]
+    assert partials and all(p["text"].startswith("karna-base: ") for p in partials)
+    # the second utterance is decoded after 1 s of the first, which is cut from its text
+    final_calls = [c for c in client.engine.calls if c[0] == "karna-large"]
+    assert final_calls[0][2] == 0 and final_calls[1][2] == 8000 + 16000
+    assert finals[1]["text"].endswith("after context")
     done = messages[-1]
     assert done["type"] == "done" and done["reason"] == "stop"
     assert done["text"] == " ".join(f["text"] for f in finals)
     job = done["job"]
-    assert job["status"] == "done" and job["live"] and job["filename"].startswith("Live ")
+    assert job["status"] == "done" and job["live"] and job["filename"].startswith("Live ") and job["language"] == "km"
     assert job["result"]["text"] == done["text"] and len(job["result"]["segments"]) == 2
     assert job["duration_s"] == pytest.approx(len(data) / 2 / 16000, abs=1e-3)
     assert client.get("/v1/jobs").json()[0]["id"] == job["id"]
@@ -198,6 +230,12 @@ def test_stream_rejections(tmp_path):
         assert e.value.code == 1008
         with c.websocket_connect("/v1/stream") as ws:
             ws.send_json({"type": "start", "api_key": "s3cret", "model": "nope"})
+            assert ws.receive_json()["type"] == "error"
+        with c.websocket_connect("/v1/stream") as ws:
+            ws.send_json({"type": "start", "api_key": "s3cret", "partial_model": "nope"})
+            assert ws.receive_json()["type"] == "error"
+        with c.websocket_connect("/v1/stream") as ws:
+            ws.send_json({"type": "start", "api_key": "s3cret", "language": "fr"})
             assert ws.receive_json()["type"] == "error"
         with c.websocket_connect("/v1/stream", headers={"X-API-Key": "s3cret"}) as ws:
             ws.send_json({"type": "start"})

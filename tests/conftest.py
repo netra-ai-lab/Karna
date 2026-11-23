@@ -7,6 +7,25 @@ import json
 import pytest
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _graph_cache(tmp_path_factory):
+    """Token-bias graphs of the tiny test models go to a temporary cache, not ~/.cache/karna (bias.py).
+    With --slow the user's cache is kept, so the published models' copies are made once."""
+    import os
+
+    if os.environ.get("KARNA_CACHE_DIR") is None and not _slow:
+        os.environ["KARNA_CACHE_DIR"] = str(tmp_path_factory.mktemp("karna-cache"))
+    yield
+
+
+_slow = False
+
+
+def pytest_configure(config):
+    global _slow
+    _slow = config.getoption("--slow")
+
+
 def pytest_addoption(parser):
     parser.addoption("--slow", action="store_true", help="run the tests that need the published models")
 

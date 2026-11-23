@@ -19,12 +19,15 @@ from pathlib import Path
 import numpy as np
 
 from ..text import CharVocab
+from .bias import INPUT as BIAS_INPUT
+from .bias import biased_graph, language_bias
 from .hub import load_sessions, model_file
 
 
 class Recognizer:
     def __init__(self, source: str | Path, device: str | None = "auto") -> None:
-        self.root, self.config, self.variant, self.sessions, self.device = load_sessions(source, device)
+        self.root, self.config, self.variant, self.sessions, self.device = load_sessions(
+            source, device, prepare=lambda role, path: biased_graph(path, f"{Path(str(source)).name}-{role}"))
         self.source = str(source)
         components = self.config["components"]
         pre = components.get("preprocess", {})
@@ -36,6 +39,21 @@ class Recognizer:
             raise ValueError(f"unsupported decoder {decoder.get('type')!r} in {self.root}")
         self.vocab = CharVocab.load(model_file(self.root, components["tokenizer"]["vocab"]))
         self.session = self.sessions["model"]
+        #: False when the graph could not be given a token-bias input (no ``onnx`` package)
+        self.biasable = BIAS_INPUT in {i.name for i in self.session.session.get_inputs()}
+        self._biases: dict[str, np.ndarray] = {}
+
+    def _inputs(self, audio: np.ndarray, lens: np.ndarray, language: str | None) -> dict:
+        """Graph inputs; ``language=None`` decodes over the whole vocabulary (the plain argmax)."""
+        inputs = {"audio": audio, "audio_lens": lens}
+        if self.biasable:
+            if language not in self._biases:
+                self._biases[language] = (np.zeros(len(self.vocab), np.float32) if language is None
+                                          else language_bias(self.vocab.pieces, language))
+            inputs[BIAS_INPUT] = self._biases[language]
+        elif language not in (None, "auto"):
+            raise RuntimeError("language control needs the onnx package: pip install onnx")
+        return inputs
 
     @property
     def name(self) -> str:
@@ -58,8 +76,22 @@ class Recognizer:
         std = max(float(wav.std()), self.eps)
         return ((wav - wav.mean()) / std).astype(np.float32, copy=False)
 
-    def transcribe(self, wavs: list[np.ndarray], batch_size: int = 8) -> list[str]:
+    def transcribe_tail(self, wav: np.ndarray, skip: int, language: str | None = "auto") -> str:
+        """Text for ``wav[skip:]`` only, decoded with ``wav[:skip]`` in view as context: the frames
+        that cover the first ``skip`` samples are dropped before CTC collapsing. Live transcription
+        passes the end of the previous utterance this way (``karna.streaming``)."""
+        wav = np.asarray(wav, dtype=np.float32).reshape(-1)
+        out = self.session.run(self._inputs(self.normalize(wav)[None, :], np.array([len(wav)], np.int64), language))
+        ids = out["ids"][0, : int(out["frame_lens"][0])]
+        first = int(self.frame_lengths(np.array([skip]))[0]) if skip > 0 else 0
+        return self.vocab.greedy(ids[first:].tolist())
+
+    def transcribe(self, wavs: list[np.ndarray], batch_size: int = 8, language: str | None = "auto") -> list[str]:
         """Text for each 1-D float32 waveform at ``sample_rate`` (same order).
+
+        ``language`` limits the characters the model may emit (``bias.language_bias``): ``auto``
+        allows Khmer and ASCII, ``km`` Khmer without Latin letters, ``en`` ASCII only, and ``None``
+        every character (the published graph's own argmax).
 
         Longest first, so each batch pads as little as possible.
         """
@@ -71,7 +103,7 @@ class Recognizer:
             batch = np.zeros((len(idx), int(lens.max())), dtype=np.float32)
             for row, i in enumerate(idx):
                 batch[row, : lens[row]] = self.normalize(wavs[i])
-            out = self.session.run({"audio": batch, "audio_lens": lens})
+            out = self.session.run(self._inputs(batch, lens, language))
             for row, i in enumerate(idx):
                 texts[i] = self.vocab.greedy(out["ids"][row, : int(out["frame_lens"][row])].tolist())
         return texts

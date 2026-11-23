@@ -58,6 +58,7 @@ ENV PATH=/opt/venv/bin:$PATH \
     KARNA_BUNDLES=/models \
     HF_HUB_OFFLINE=1 \
     KARNA_DATA_DIR=/data \
+    KARNA_CACHE_DIR=/data/cache \
     KARNA_HOST=0.0.0.0 \
     KARNA_PORT=8000 \
     KARNA_DEVICE=cpu

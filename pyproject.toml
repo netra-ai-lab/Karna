@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "netra-karna"
-version = "1.0.0"
+version = "1.1.0"
 description = "Compact Khmer and English speech recognition on ONNX Runtime: Omnilingual ASR CTC models structurally pruned to 80% sparsity."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -23,6 +23,7 @@ dependencies = [
     "soundfile",
     "soxr",
     "huggingface_hub>=0.20",
+    "onnx>=1.16",  # adds the language input to the graph (karna/inference/bias.py)
 ]
 
 [project.optional-dependencies]

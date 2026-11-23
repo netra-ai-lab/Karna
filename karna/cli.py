@@ -14,7 +14,7 @@ def _transcribe(args: argparse.Namespace) -> None:
     from .asr import load_model
 
     asr = load_model(args.model, args.device)
-    texts = asr.transcribe(list(args.audio), batch_size=args.batch_size)
+    texts = asr.transcribe(list(args.audio), batch_size=args.batch_size, language=args.language)
     if args.format == "json":
         rows = [{"file": path, "text": text} for path, text in zip(args.audio, texts)]
         print(json.dumps({"model": asr.name, "device": asr.device, "results": rows}, ensure_ascii=False, indent=2))
@@ -58,6 +58,8 @@ def main(argv: list[str] | None = None) -> None:
                    help=f"{' or '.join(MODELS)}, a Hugging Face id or a model folder (default {DEFAULT_MODEL})")
     t.add_argument("--device", help="auto, cpu, cuda, tensorrt or openvino (default: $KARNA_DEVICE, else auto)")
     t.add_argument("--batch-size", type=int, default=8)
+    t.add_argument("--language", choices=["auto", "km", "en"], default="auto",
+                   help="auto: Khmer or English; km: never output Latin letters; en: English only")
     t.add_argument("--format", choices=["tsv", "txt", "json"], default="tsv",
                    help="tsv: <path><TAB><text> per file (default); txt: the text only; json: one document")
     t.set_defaults(func=_transcribe)

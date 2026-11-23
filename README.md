@@ -199,6 +199,7 @@ asr = karna.load_model("karna-base")              # or "karna-large", a Hugging 
 print(asr.transcribe("speech.wav"))             # one file -> one string
 print(asr.transcribe(["a.wav", "b.flac"]))      # a list -> a list, batched
 print(asr.transcribe((waveform, 44100)))        # a numpy array with its sample rate
+print(asr.transcribe("speech.wav", language="km"))  # Khmer only: never Latin letters ("en", default "auto")
 
 live = asr.stream()                             # live: feed 16 kHz chunks as they arrive
 for event in live.feed(chunk):                  # partial text, then final text per utterance
@@ -208,7 +209,7 @@ for event in live.feed(chunk):                  # partial text, then final text 
 **Command line.** Each file prints as one line: the path, a tab, then the text.
 
 ```bash
-karna transcribe speech.wav other.flac --model karna-large    # --format txt|json, --device cpu|cuda
+karna transcribe speech.wav other.flac --model karna-large    # --language auto|km|en, --format txt|json, --device cpu|cuda
 karna models                                                  # list the released models
 karna download karna-base karna-large                         # fetch now, run offline later
 karna serve --port 8000                                       # the web app and REST API ([server] extra)
@@ -218,18 +219,19 @@ karna serve --port 8000                                       # the web app and 
 
 ```bash
 curl -F file=@speech.wav "http://localhost:8000/v1/transcribe?wait=true"           # the finished job, with result.text
-curl -F file=@speech.wav -F model=karna-large http://localhost:8000/v1/transcribe  # -> 202, the queued job
+curl -F file=@speech.wav -F model=karna-large -F language=km http://localhost:8000/v1/transcribe  # -> 202, the queued job
 curl http://localhost:8000/v1/jobs/<id>                                            # until "status": "done"
 curl -o speech.txt "http://localhost:8000/v1/jobs/<id>/export?format=txt"          # or json
 ```
 
-**Live.** The web app's **Live** button shows text as you speak. Behind it, the `/v1/stream` WebSocket takes 16 kHz PCM frames and sends back partial and final text. Each utterance is decoded again as it grows, and the session is saved as a job when you stop. See [docs/USAGE.md](docs/USAGE.md#live-transcription-v1stream).
+**Live.** The web app's **Live captions** show text as you speak. Each utterance gets its own line, which turns white from the front as successive drafts agree; only the last few seconds stay grey, and **Settled only** hides those. Behind it, the `/v1/stream` WebSocket takes 16 kHz PCM frames and sends back partial and final text. Each utterance is decoded again as it grows, and the session is saved as a job when you stop. For Khmer, choose karna-large and **ខ្មែរ**. See [docs/USAGE.md](docs/USAGE.md#live-transcription-v1stream).
 
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
 | `KARNA_API_KEY` | *(unset)* | Require `X-API-Key` / `Authorization: Bearer` on `/v1/*`. Set it before exposing the port beyond your machine. |
 | `KARNA_MODEL` | `karna-base` | The model loaded at start; the other loads on first use |
 | `KARNA_MAX_SECONDS` | `30` | Longer audio is refused with HTTP 422 |
+| `KARNA_CACHE_DIR` | `~/.cache/karna` | Where each model's copy with a language input is kept (made on first load: 0.3 GB base, 0.9 GB large) |
 
 [docs/USAGE.md](docs/USAGE.md) lists every flag, route, environment variable and device.
 
@@ -253,7 +255,7 @@ training/run.sh base                               # or: training/run.sh large
 
 - **English is the weak side.** Pruning to about 80% costs English far more than Khmer, at 1.5–2× the teacher's WER. Use `karna-large`, or a fine-tuned teacher, when English accuracy matters.
 - **No punctuation or casing.** Output is lowercase with no punctuation, because the Omnilingual character vocabulary has no Khmer punctuation.
-- **Greedy decoding only.** There is no language model or beam search.
+- **Greedy decoding only.** There is no language model or beam search. `language` only limits which characters can be written; it does not make English more accurate, and English from a microphone is still weak.
 - **One pass per file.** Each file is decoded in a single pass, so split long recordings into utterances first. Training used clips of 1–25 s, and the web app and REST API refuse files over 30 s (`KARNA_MAX_SECONDS`).
 - **Two languages only.** The models were trained and tested on Khmer and English only; other languages Omnilingual supports will have degraded.
 - **The Khmer corpus is a manual download.** [DDD](https://huggingface.co/datasets/Digital-Divide-Data/khmer-speech-dataset) is public, but `training/run.sh` doesn't fetch it, and it reads DDD through its own shard index (see [docs/TRAINING.md](docs/TRAINING.md)).

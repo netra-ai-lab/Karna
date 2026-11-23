@@ -11,6 +11,9 @@ this instead:
    sent as a *partial*, which may still change.
 3. When a segment closes, it is decoded once more as a *final*, which never changes. A final is the
    offline transcription of that segment with 0.5 s of silence on each side (see ``pad``).
+4. From the second segment on, each decode is given the last ``context_s`` (1 s) of the previous
+   segment in front, and the text of those frames is cut (``Context``). This needs
+   ``decode_context``; ``Karna.stream()`` passes ``Recognizer.transcribe_tail``.
 
 On the golden clips, streamed text in 100 ms chunks matches the offline text for 4 of 8 (clip,
 model) pairs; the others are 1-5 characters apart (tests/test_golden.py).
@@ -219,9 +222,12 @@ class StreamingTranscriber:
     """
 
     def __init__(self, decode: Callable[[np.ndarray], str], partial_interval_s: float = 0.8,
-                 sample_rate: int = 16000, pad_ms: int = 500, **endpointer_opts) -> None:
+                 sample_rate: int = 16000, pad_ms: int = 500, context_s: float = 1.0,
+                 decode_context: Callable[[np.ndarray, int], str] | None = None, **endpointer_opts) -> None:
         self._decode = decode
+        self._decode_context = decode_context
         self.pad = np.zeros(int(sample_rate * pad_ms / 1000), np.float32)
+        self.context = Context(int(context_s * sample_rate))
         self.endpointer = Endpointer(sample_rate=sample_rate, **endpointer_opts)
         self.partial_samples = int(partial_interval_s * sample_rate)
         self.finals: list[dict] = []
@@ -229,6 +235,8 @@ class StreamingTranscriber:
         self._partial_id: int | None = None
 
     def decode(self, audio: np.ndarray) -> str:
+        if self._decode_context is not None and self.context.audio.size:
+            return self._decode_context(*self.context.wrap(audio, self.pad))
         return self._decode(pad(audio, self.pad))
 
     @property
@@ -258,8 +266,30 @@ class StreamingTranscriber:
         if not seg.keep:  # clear a partial the UI may be showing for it
             return [final_event(seg, "")] if had_partial else []
         event = final_event(seg, self.decode(seg.audio))
+        self.context.update(seg)
         self.finals.append(event)
         return [event]
+
+
+class Context:
+    """The end of the last utterance, decoded in front of the next one and then cut from its text.
+
+    Segments are cut at pauses, so the boundary lies in silence and no character straddles it. On
+    a 50 s Khmer microphone recording (scripts/stream_eval.py), 1 s of context cut karna-base's
+    Latin-letter share from 0.48 to 0.35, and moved karna-large closer to its offline text.
+    """
+
+    def __init__(self, samples: int) -> None:
+        self.samples = samples
+        self.audio = np.zeros(0, np.float32)
+
+    def update(self, seg: Segment) -> None:
+        if self.samples > 0 and seg.keep:
+            self.audio = seg.audio[-self.samples:]
+
+    def wrap(self, audio: np.ndarray, silence: np.ndarray) -> tuple[np.ndarray, int]:
+        """``[silence, context, audio, silence]`` and how many leading samples to drop from the text."""
+        return np.concatenate([silence, self.audio, audio, silence]), len(silence) + len(self.audio)
 
 
 def pad(audio: np.ndarray, silence: np.ndarray) -> np.ndarray:

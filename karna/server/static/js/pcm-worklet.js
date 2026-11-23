@@ -1,8 +1,8 @@
-// AudioWorklet: hands the microphone's first channel to the page in blocks of about 40 ms.
+// AudioWorklet: hands the microphone's first channel to the page in blocks of 1024 samples (64 ms at 16 kHz, 21 ms at 48 kHz).
 class PcmCapture extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.block = new Float32Array(2048);
+    this.block = new Float32Array(1024);
     this.filled = 0;
   }
 

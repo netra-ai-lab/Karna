@@ -55,8 +55,14 @@ class Engine:
             self.device = self.loaded[name].device
         return self.loaded[name]
 
-    def transcribe(self, name: str, wav) -> str:
-        return self.load(name).transcribe(wav)
+    def transcribe(self, name: str, wav, language: str = "auto") -> str:
+        return self.load(name).transcribe(wav, language=language)
+
+    def transcribe_tail(self, name: str, wav, skip: int, language: str = "auto") -> str:
+        """Text for ``wav[skip:]``, with ``wav[:skip]`` as context (``Recognizer.transcribe_tail``)."""
+        from ..text import clean_khmer
+
+        return clean_khmer(self.load(name).recognizer.transcribe_tail(wav, skip, language=language))
 
 
 class JobStore:
@@ -106,13 +112,14 @@ class JobStore:
     def _enqueue(self, priority: int, item: Any) -> None:
         self.queue.put((priority, next(self._seq), item))
 
-    def create(self, data: bytes, filename: str, model: str, duration_s: float) -> dict:
+    def create(self, data: bytes, filename: str, model: str, duration_s: float, language: str = "auto") -> dict:
         job_id = uuid.uuid4().hex[:12]
         folder = self.path(job_id)
         folder.mkdir()
         (folder / "upload.bin").write_bytes(data)
         job = {"id": job_id, "status": "queued", "model": model, "filename": filename,
-               "duration_s": round(duration_s, 3), "created": time.time(), "finished": None, "error": None}
+               "language": language, "duration_s": round(duration_s, 3), "created": time.time(), "finished": None,
+               "error": None}
         with self.lock:
             self._write(job)
             self.done_events[job_id] = threading.Event()
@@ -120,14 +127,14 @@ class JobStore:
         self._prune()
         return job
 
-    def record(self, filename: str, model: str, duration_s: float, result: dict) -> dict:
+    def record(self, filename: str, model: str, duration_s: float, result: dict, language: str = "auto") -> dict:
         """Save a finished transcript (a live session) as a done job; no audio is kept."""
         job_id = uuid.uuid4().hex[:12]
         folder = self.path(job_id)
         folder.mkdir()
         now = time.time()
         (folder / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
-        job = {"id": job_id, "status": "done", "model": model, "filename": filename, "live": True,
+        job = {"id": job_id, "status": "done", "model": model, "filename": filename, "live": True, "language": language,
                "duration_s": round(duration_s, 3), "created": now, "started": now, "finished": now, "error": None}
         with self.lock:
             self._write(job)
@@ -214,7 +221,7 @@ class JobStore:
             job = self._update(job_id, status="running", started=time.time())
             start = time.perf_counter()
             wav = decode((folder / "upload.bin").read_bytes())
-            text = self.engine.transcribe(job["model"], wav)
+            text = self.engine.transcribe(job["model"], wav, language=job.get("language", "auto"))
             result = {"text": text, "model": job["model"], "device": self.engine.device,
                       "duration_s": job["duration_s"], "seconds": round(time.perf_counter() - start, 3)}
             (folder / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")

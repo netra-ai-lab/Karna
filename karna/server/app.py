@@ -18,8 +18,9 @@ from fastapi.staticfiles import StaticFiles
 
 from .. import __version__
 from ..audio import SAMPLE_RATE, load_audio
+from ..inference.bias import LANGUAGES
 from ..models import MODELS
-from ..streaming import Endpointer, Segment, final_event, pad
+from ..streaming import Context, Endpointer, Segment, final_event, pad
 from .jobs import Engine, JobStore
 from .settings import Settings
 
@@ -28,13 +29,22 @@ logger = logging.getLogger(__name__)
 #: re-decode the open segment after this much new audio (latest wins: none while one is running)
 PARTIAL_SAMPLES = int(0.8 * SAMPLE_RATE)
 SILENCE = np.zeros(SAMPLE_RATE // 2, np.float32)  # padded on both sides of each decode (streaming.pad)
+CONTEXT_SAMPLES = SAMPLE_RATE                     # 1 s of the previous utterance (streaming.Context)
 
 
 class LiveSession:
     """One /v1/stream WebSocket: endpoint the audio, decode on the worker, send partials and finals."""
 
-    def __init__(self, ws: WebSocket, model: str, store: JobStore, engine: Engine, max_seconds: float) -> None:
+    def __init__(self, ws: WebSocket, model: str, store: JobStore, engine: Engine, max_seconds: float,
+                 partial_model: str | None = None, language: str = "auto") -> None:
         self.ws, self.model, self.store, self.engine = ws, model, store, engine
+        self.language = language
+        # Drafts come from the chosen model too. karna-base drafts for karna-large arrived every
+        # ~1 s, but were mostly unreadable (capture CER 0.55 vs 0.24), so what was on screen made
+        # no sense until Stop. karna-large drafts come every 1-3 s and finals 0-2 s later.
+        # A client may still ask for faster drafts with ``partial_model``.
+        self.partial_model = partial_model or model
+        self.context = Context(CONTEXT_SAMPLES)  # end of the last utterance, decoded before the next
         self.limit = int(max_seconds * SAMPLE_RATE)
         self.endpointer = Endpointer(sample_rate=SAMPLE_RATE)
         self.send_lock = asyncio.Lock()
@@ -57,18 +67,25 @@ class LiveSession:
             except Exception:
                 self.connected = False
 
-    async def decode(self, audio: np.ndarray) -> str:
+    async def decode(self, audio: np.ndarray, model: str) -> str:
         t0 = time.perf_counter()
-        padded = pad(audio, SILENCE)
-        text = await asyncio.wrap_future(self.store.submit(lambda: self.engine.transcribe(self.model, padded)))
+        if self.context.audio.size:
+            wav, skip = self.context.wrap(audio, SILENCE)
+            job = lambda: self.engine.transcribe_tail(model, wav, skip, self.language)  # noqa: E731
+        else:
+            padded = pad(audio, SILENCE)
+            job = lambda: self.engine.transcribe(model, padded, self.language)  # noqa: E731
+        text = await asyncio.wrap_future(self.store.submit(job))
         took = time.perf_counter() - t0
         self.decode_s += took
-        logger.info("live %s: %.1f s of audio in %.2f s", self.model, len(audio) / SAMPLE_RATE, took)
+        logger.info("live %s: %.1f s of audio in %.2f s", model, len(audio) / SAMPLE_RATE, took)
         return text
 
     async def run(self) -> None:
         reason = "stop"
-        await self.send({"type": "ready", "model": self.model, "sample_rate": SAMPLE_RATE,
+        await self.send({"type": "ready", "model": self.model, "partial_model": self.partial_model,
+                         "language": self.language,
+                         "sample_rate": SAMPLE_RATE,
                          "max_seconds": self.limit / SAMPLE_RATE})
         try:
             while True:
@@ -108,7 +125,8 @@ class LiveSession:
         result = {"text": text, "model": self.model, "device": self.engine.device, "duration_s": seconds,
                   "seconds": round(self.decode_s, 3),
                   "segments": [{k: f[k] for k in ("text", "start", "end")} for f in self.finals if f["text"]]}
-        return self.store.record(f"Live {time.strftime('%Y-%m-%d %H:%M:%S')}", self.model, seconds, result)
+        return self.store.record(f"Live {time.strftime('%Y-%m-%d %H:%M:%S')}", self.model, seconds, result,
+                                 self.language)
 
     async def audio(self, data: bytes) -> None:
         data = self.odd + data
@@ -133,7 +151,7 @@ class LiveSession:
 
     async def send_partial(self, seg_id: int, audio: np.ndarray) -> None:
         try:
-            text = await self.decode(audio)
+            text = await self.decode(audio, self.partial_model)
         except Exception as e:
             await self.send({"type": "error", "detail": f"{type(e).__name__}: {e}"})
             return
@@ -146,7 +164,8 @@ class LiveSession:
             if self.partial_id == seg.id:
                 await self.send(final_event(seg, ""))
             return
-        event = final_event(seg, await self.decode(seg.audio))
+        event = final_event(seg, await self.decode(seg.audio, self.model))
+        self.context.update(seg)
         self.finals.append(event)
         await self.send(event)
 
@@ -203,17 +222,20 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
                        for n, m in MODELS.items()],
             "sample_rate": SAMPLE_RATE, "max_seconds": settings.max_seconds,
             "max_upload_mb": settings.max_upload_mb, "auth": bool(settings.api_key),
-            "streaming": True, "max_stream_seconds": settings.max_stream_seconds,
+            "streaming": True, "max_stream_seconds": settings.max_stream_seconds, "languages": list(LANGUAGES),
         }
 
     @app.post("/v1/transcribe", dependencies=[Depends(auth)], status_code=202)
     async def transcribe(file: UploadFile = File(..., description="audio: wav, flac, ogg, mp3, ..."),
                          model: str | None = Form(None, description="karna-base (default) or karna-large"),
+                         language: str = Form("auto", description="auto (Khmer or English), km (no Latin letters) or en"),
                          wait: bool = Query(False, description="block until the text is ready (up to 5 minutes)")):
         """Queue one audio file; returns the job. With ``wait=true``, returns the finished job."""
         model = model or settings.model
         if model not in MODELS:
             raise HTTPException(422, f"unknown model {model!r}: use one of {sorted(MODELS)}")
+        if language not in LANGUAGES:
+            raise HTTPException(422, f"unknown language {language!r}: use one of {list(LANGUAGES)}")
         limit = int(settings.max_upload_mb * 1024 * 1024)
         data = await file.read(limit + 1)
         if len(data) > limit:
@@ -226,7 +248,7 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
         if seconds > settings.max_seconds:
             raise HTTPException(422, f"the audio is {seconds:.1f} s; the limit is {settings.max_seconds:g} s. "
                                      "Karna decodes each file in one pass: split long recordings into utterances.")
-        job = store.create(data, file.filename or "audio", model, seconds)
+        job = store.create(data, file.filename or "audio", model, seconds, language)
         if wait:
             job = await run_in_threadpool(store.wait, job["id"], 300.0)
             return JSONResponse(job, status_code=200 if job["status"] == "done" else 202)
@@ -251,16 +273,23 @@ def create_app(settings: Settings | None = None, engine: Engine | None = None) -
             await ws.close(1008, "missing or wrong API key")
             return
         model = start.get("model") or settings.model
-        if model not in MODELS:
-            await ws.send_json({"type": "error", "detail": f"unknown model {model!r}: use one of {sorted(MODELS)}"})
-            await ws.close(1008, "unknown model")
+        partial_model = start.get("partial_model") or None
+        language = start.get("language") or "auto"
+        if language not in LANGUAGES:
+            await ws.send_json({"type": "error", "detail": f"unknown language {language!r}: use one of {list(LANGUAGES)}"})
+            await ws.close(1008, "unknown language")
             return
+        for name in (model, partial_model):
+            if name is not None and name not in MODELS:
+                await ws.send_json({"type": "error", "detail": f"unknown model {name!r}: use one of {sorted(MODELS)}"})
+                await ws.close(1008, "unknown model")
+                return
         if live["sessions"] >= settings.max_streams:
             await ws.close(1013, "busy: too many live sessions")
             return
         live["sessions"] += 1
         try:
-            await LiveSession(ws, model, store, engine, settings.max_stream_seconds).run()
+            await LiveSession(ws, model, store, engine, settings.max_stream_seconds, partial_model, language).run()
         finally:
             live["sessions"] -= 1
 

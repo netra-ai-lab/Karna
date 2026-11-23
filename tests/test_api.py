@@ -22,14 +22,16 @@ def test_onnx_matches_pytorch(tiny_model, tiny_bundle):
     rec = Recognizer(tiny_bundle, device="cpu")
     wavs = clips()
     expected = torch_transcribe(model, vocab, wavs)
-    assert rec.transcribe(wavs, batch_size=4) == expected  # batched (padded) vs one at a time
+    assert rec.biasable  # the token-bias input was added (bias.py)
+    # language=None: the plain argmax over every character, which is what PyTorch computes
+    assert rec.transcribe(wavs, batch_size=4, language=None) == expected  # batched (padded) vs one at a time
     assert all(expected), "the test model should produce text, or the comparison proves nothing"
 
 
 def test_frame_lengths_match_graph(tiny_bundle):
     rec = Recognizer(tiny_bundle, device="cpu")
     lens = np.array([16000, 12345, 801, 400], dtype=np.int64)
-    out = rec.session.run({"audio": np.zeros((4, 16000), np.float32), "audio_lens": lens})
+    out = rec.session.run(rec._inputs(np.zeros((4, 16000), np.float32), lens, None))
     assert np.array_equal(out["frame_lens"], rec.frame_lengths(lens))
 
 
@@ -81,3 +83,19 @@ def test_config_names_every_file(tiny_bundle):
     config = json.loads((tiny_bundle / "netra-model.json").read_text())
     assert set(config["files"]) == {"model.onnx", "vocab.json"}
     assert config["components"]["decoder"] == {"type": "ctc-greedy", "blank": 0}
+
+
+def test_language_limits_the_characters(tiny_bundle):
+    from karna.inference.bias import language_bias
+
+    rec = Recognizer(tiny_bundle, device="cpu")
+    wavs = clips()
+    raw = "".join(rec.transcribe(wavs, language=None))
+    assert any(not (c.isascii() or "ក" <= c <= "៿") for c in raw), "the random model should use other scripts"
+    for language in ("auto", "km", "en"):
+        allowed = {p for p, b in zip(rec.vocab.pieces, language_bias(rec.vocab.pieces, language)) if b == 0}
+        text = "".join(rec.transcribe(wavs, language=language))
+        assert text and set(text) <= allowed | {" "}, language
+    assert not any(c.isascii() and c.isalpha() for c in "".join(rec.transcribe(wavs, language="km")))
+    with pytest.raises(ValueError):
+        rec.transcribe(wavs[:1], language="fr")
