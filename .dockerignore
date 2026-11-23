@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+**/__pycache__
+**/*.egg-info
+build
+dist
+training
+assets
+docs
+tests/*.py
+*.onnx
+*.pt

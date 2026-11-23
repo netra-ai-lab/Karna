@@ -1,0 +1,19 @@
+# docker compose up --build    then open http://localhost:8000
+services:
+  karna:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: ghcr.io/netra-ai-lab/karna:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - karna-data:/data
+    environment:
+      KARNA_MODEL: karna-base        # loaded at start; karna-large loads on first use
+      # KARNA_API_KEY: change-me     # require a key for /v1/*
+      # KARNA_MAX_SECONDS: "30"
+    restart: unless-stopped
+
+volumes:
+  karna-data:
