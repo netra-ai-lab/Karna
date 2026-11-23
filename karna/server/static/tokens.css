@@ -1,0 +1,31 @@
+/* Netra Lab brand tokens. Copied from Netra-Lab-Website/app/globals.css;
+   tokens.json is the machine-readable twin. Single light theme: there is no
+   dark mode, by design. */
+:root {
+  --background: #ffffff;
+  --foreground: #1c1917;
+  --muted: #5a524c;
+  --muted-2: #776e66;
+  --border: #e7e2da;
+  --card: #f6f3ee;
+  --wash: rgba(79, 39, 36, 0.035);
+  --wash-2: rgba(79, 39, 36, 0.06);
+  /* A fill colour; on white it is too light for text, so text links use --link. */
+  --primary: #e75f1b;
+  --link: #b5440c;
+  --accent-yellow: #f6c416;
+  --accent-maroon: #4f2724;
+  /* Project tones: large areas take the soft tint, small marks the solid colour. */
+  --tint-orange: #f6dfcf;
+  --tint-maroon: #ecdcd6;
+  --tint-yellow: #f5eac6;
+  /* The ground of research banners and model card pictures; carries light text. */
+  --hero-ink: #1c1917;
+
+  /* One stack: Figtree for Latin, Kantumruy Pro for Khmer. No serif. */
+  --font-sans: Figtree, "Kantumruy Pro", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  /* Square corners; small controls take 2px at most. */
+  --radius-panel: 0px;
+  --radius-control: 2px;
+}

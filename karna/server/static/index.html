@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Karna</title>
+  <meta name="description" content="Khmer and English speech recognition on your own machine. Upload or record audio, get text.">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/Figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/tokens.css">
+  <link rel="stylesheet" href="/static/app.css">
+  <script type="module" src="/static/js/main.js"></script>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a class="brand" href="#/" aria-label="Karna, transcribe">
+        <span class="logo-symbol" aria-hidden="true"></span>
+        <span class="brand-word">Karna</span>
+      </a>
+      <nav class="tabs" aria-label="Main">
+        <a href="#/" data-tab="home">Transcribe</a>
+        <a href="#/api" data-tab="api">API</a>
+      </nav>
+      <span id="engine" class="status status-running" role="status">Loading models…</span>
+    </div>
+  </header>
+
+  <main id="view" tabindex="-1">
+    <section class="page" data-view="home">
+      <div class="panel upload">
+        <label class="drop" id="drop">
+          <input type="file" id="file" accept="audio/*,.wav,.flac,.ogg,.mp3,.opus" multiple>
+          <span class="drop-title">Drop audio here, or <span>choose files</span></span>
+          <span class="meta" id="drop-meta">Khmer or English speech · wav, flac, ogg, mp3</span>
+        </label>
+        <div class="bar-row">
+          <label class="field"><span>Model</span><select id="model" class="select"></select></label>
+          <button type="button" class="btn" id="record" aria-pressed="false">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="1.5" width="5" height="8.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3 7.5a5 5 0 0 0 10 0M8 12.5V15" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+            <span id="record-label">Record</span>
+          </button>
+          <label class="field key" id="key-field" hidden><span>API key</span><input id="key" class="input" type="password" autocomplete="off"></label>
+          <span class="error-text" id="upload-error" role="alert"></span>
+        </div>
+      </div>
+
+      <div class="list-head">
+        <h2>Recent</h2>
+        <p class="meta">Kept on this machine; nothing leaves it.</p>
+      </div>
+      <ol class="jobs" id="jobs"></ol>
+      <p class="empty" id="empty">Nothing yet. Transcripts of what you upload or record appear here.</p>
+    </section>
+
+    <section class="page" data-view="api" hidden>
+      <h1>REST API</h1>
+      <p class="lead">Everything this page does goes through these routes. The interactive reference is at <a href="/docs">/docs</a>.</p>
+      <div id="api-examples"></div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p class="meta"><span id="version">Karna</span> · runs on this machine ·
+      <a href="/docs">API docs</a> ·
+      <a href="https://github.com/netra-ai-lab/Karna" rel="noopener">GitHub</a> ·
+      <a href="https://github.com/netra-ai-lab/Karna#8-licensing" rel="noopener">Licences</a></p>
+  </footer>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
