@@ -60,17 +60,30 @@ FLEURS-km and FLEURS-en train splits are in the training mix, so their test sets
 The fairseq2 checkpoint was verified by reloading it with fairseq2 and comparing logits
 against the training model: the maximum difference was exactly zero.
 
-## Usage (karna)
+## Usage (Karna training package)
+
+The teachers are PyTorch-only. They load with the training package in the
+[Karna repo](https://github.com/netra-ai-lab/Karna) (`training/`); the `karna` pip package runs only the
+pruned ONNX models.
 
 ```bash
-pip install git+https://github.com/netra-ai-lab/Karna
+pip install "netra-karna[cpu] @ git+https://github.com/netra-ai-lab/Karna" \
+            "karna-train @ git+https://github.com/netra-ai-lab/Karna#subdirectory=training"
 ```
 
 ```python
-import karna
+import torch
+from karna.audio import load_audio
+from karna_train.model import normalize_audio_
+from karna_train.release import load_release
 
-asr = karna.load_model("teacher-1b")      # downloads this repo's weights once
-print(asr.transcribe("audio.wav"))
+model, vocab = load_release("teacher-1b")    # downloads this repo's weights once
+audio = torch.from_numpy(load_audio("audio.wav"))[None]
+lens = torch.tensor([audio.shape[1]])
+normalize_audio_(audio, lens)
+with torch.no_grad():
+    out = model.eval()(audio, lens)
+print(vocab.greedy(out["logits"][0].argmax(-1)[: int(out["frame_lens"][0])].tolist()))
 ```
 
 ## Usage (omnilingual-asr)

@@ -3,13 +3,14 @@ license: apache-2.0
 language:
 - km
 - en
-library_name: pytorch
+library_name: onnx
 pipeline_tag: automatic-speech-recognition
 tags:
 - omnilingual-asr
 - ctc
 - wav2vec2
 - structured-pruning
+- onnx
 - khmer
 ---
 
@@ -54,7 +55,7 @@ Test sets; greedy CTC decoding, no language model. CER for Khmer, WER for Englis
 - **Base:** a wav2vec2-style CTC encoder with Omnilingual's 9,812-entry character vocabulary, which covers Khmer and Latin script.
 - **Pruned parts:** per-layer attention heads and FFN units, so every layer has its own width. `config.json` lists the exact `num_heads` and `ffn_dims`; the encoder has 61M parameters, 19% of the 300M's 315M.
 - **Unchanged parts:** the CNN feature extractor and the output layer.
-- **Loading:** the layer widths are non-uniform, so fairseq2 / `omnilingual-asr` cannot load it. Use the `karna` package (see Usage) or the code bundled in this repo.
+- **Loading:** the layer widths are non-uniform, so fairseq2 / `omnilingual-asr` cannot load it. Use the `karna` package (ONNX, see Usage) or the PyTorch code bundled in this repo.
 
 ## How it was made
 
@@ -74,23 +75,36 @@ DPHuBERT (arXiv 2305.17651) as used in DiariZen.
 
 ## Usage
 
+The `karna` package runs the ONNX model in `onnx/` on ONNX Runtime, with no PyTorch:
+
 ```bash
-pip install git+https://github.com/netra-ai-lab/Karna
+pip install "netra-karna[cpu]"         # or [gpu] for CUDA
 ```
 
 ```python
 import karna
 
-asr = karna.load_model("karna-base")         # downloads this repo's weights once
+asr = karna.load_model("karna-base")         # downloads onnx/ from this repo once (287 MB)
 print(asr.transcribe("audio.wav"))
 print(asr.transcribe(["a.wav", "b.flac"]))
 ```
 
 ```bash
 karna transcribe audio.wav --model karna-base
+karna serve                              # web app and REST API at http://localhost:8000 ([server] extra)
 ```
 
-Without installing the package, the code bundled in this repo also works:
+The Docker image has both models inside and serves the same web app and API:
+
+```bash
+docker run -d -p 8000:8000 -v karna-data:/data ghcr.io/netra-ai-lab/karna
+```
+
+Audio of any sample rate is accepted; it is mixed to mono and resampled to 16 kHz. Output text is in the
+Omnilingual character set: lowercase, with no Khmer punctuation.
+
+To fine-tune or prune further, the PyTorch weights at the repo root load with the training package in the
+GitHub repo (`training/`, `karna_train.release.load_release`). Without it, the code bundled here also works:
 
 ```bash
 huggingface-cli download Netra-Lab/karna-base --local-dir karna-base
@@ -98,20 +112,21 @@ pip install torch torchaudio soundfile safetensors
 python karna-base/inference.py audio.wav
 ```
 
-Audio of any sample rate is accepted; it is mixed to mono and resampled to 16 kHz. Output text is in the
-Omnilingual character set: lowercase, with no Khmer punctuation.
-
 ## Files
 
 | File | Contents |
 |---|---|
-| `model.safetensors` | weights |
+| `onnx/model.onnx` | the model as an ONNX graph (fp32, opset 18): normalised 16 kHz audio and lengths in, per-frame token ids (argmax of the CTC logits) and frame lengths out |
+| `onnx/vocab.json` | the Omnilingual character vocabulary, in id order |
+| `onnx/netra-model.json` | preprocessing, decoding and metadata, and the sha256 of each file |
+| `model.safetensors` | PyTorch weights, for fine-tuning |
 | `config.json` | architecture, including per-layer `num_heads` and `ffn_dims` |
-| `vocab.json` | the Omnilingual character vocabulary, in id order |
-| `omniprune/` | model and text code (`model.py`, `hardconcrete.py`, `text.py`) |
-| `inference.py` | load and transcribe |
+| `vocab.json` | the same vocabulary |
+| `omniprune/` | PyTorch model and text code (`model.py`, `hardconcrete.py`, `text.py`) |
+| `inference.py` | load and transcribe with PyTorch |
 
-The released files reproduce the training checkpoint's logits exactly: the maximum difference is 0.
+The PyTorch files reproduce the training checkpoint's logits exactly (maximum difference 0). The ONNX model gives
+transcripts identical to PyTorch on 40 of 40 real clips (20 Khmer, 20 English) and 16 of 16 random batches of mixed lengths.
 
 ## License and attribution
 

@@ -1,12 +1,14 @@
 <div align="center">
-  <img src="assets/symbol.svg" height="72" alt="Netra Lab" style="vertical-align: middle; margin-right: 24px;" />
-  <img src="assets/wordmark-latin.svg" height="56" alt="Netra" style="vertical-align: middle;" />
+  <img src="https://raw.githubusercontent.com/netra-ai-lab/Karna/master/assets/symbol.png" height="72" alt="Netra Lab" style="vertical-align: middle; margin-right: 24px;" />
+  <img src="https://raw.githubusercontent.com/netra-ai-lab/Karna/master/assets/wordmark-latin.png" height="56" alt="Netra" style="vertical-align: middle;" />
 </div>
 
 <hr>
 
 <p align="center">
   <a href="https://github.com/netra-ai-lab/Karna"><b>GitHub</b></a> |
+  <a href="https://github.com/netra-ai-lab/Karna/pkgs/container/karna"><b>Docker Image</b></a> |
+  <a href="https://pypi.org/project/netra-karna/"><b>PyPI</b></a> |
   <a href="https://huggingface.co/Netra-Lab/karna-base"><b>Karna-base</b></a> |
   <a href="https://huggingface.co/Netra-Lab/karna-large"><b>Karna-large</b></a> |
   <a href="https://huggingface.co/Darayut/omniASR-CTC-1B-km-en"><b>Fine-tuned 1B</b></a> |
@@ -18,6 +20,9 @@
   <img src="https://img.shields.io/badge/license-Apache--2.0-e75f1b?labelColor=4f2724" alt="License: Apache-2.0" />
   <img src="https://img.shields.io/badge/python-3.10%2B-e75f1b?labelColor=4f2724&logo=python&logoColor=f5efe5" alt="Python 3.10+" />
   <a href="https://huggingface.co/Netra-Lab/karna-base"><img src="https://img.shields.io/badge/params-71M%20%7C%20217M-e75f1b?labelColor=4f2724&logo=huggingface&logoColor=f5efe5" alt="71M and 217M parameters" /></a>
+  <a href="https://pypi.org/project/netra-karna/"><img src="https://img.shields.io/badge/pypi-netra--karna-e75f1b?labelColor=4f2724&logo=pypi&logoColor=f5efe5" alt="PyPI: netra-karna" /></a>
+  <a href="https://github.com/netra-ai-lab/Karna/pkgs/container/karna"><img src="https://img.shields.io/badge/docker-ghcr.io-e75f1b?labelColor=4f2724&logo=docker&logoColor=f5efe5" alt="Docker image" /></a>
+  <img src="https://img.shields.io/badge/runs%20on-CPU,%20offline-e75f1b?labelColor=4f2724" alt="Runs on CPU, offline" />
 </p>
 
 <h2>
@@ -31,7 +36,7 @@
 </p>
 
 <p align="center">
-  <img src="assets/results.png" width="1000" alt="Test error of the stock, fine-tuned and pruned models at both sizes on DDD, FLEURS-km and LibriSpeech" />
+  <img src="https://raw.githubusercontent.com/netra-ai-lab/Karna/master/assets/results.png" width="1000" alt="Test error of the stock, fine-tuned and pruned models at both sizes on DDD, FLEURS-km and LibriSpeech" />
 </p>
 
 <p align="center">
@@ -74,7 +79,7 @@ Karna was trained on about **2,034 hours** of speech, mixed 50/50 between Khmer 
 ## 3. Model Architecture
 
 <p align="center">
-  <img src="assets/architecture.png" width="420" alt="Karna's architecture, reading upwards from 16 kHz audio to the CTC head, with one transformer layer opened up" />
+  <img src="https://raw.githubusercontent.com/netra-ai-lab/Karna/master/assets/architecture.png" width="420" alt="Karna's architecture, reading upwards from 16 kHz audio to the CTC head, with one transformer layer opened up" />
 </p>
 
 <p><em>Figure 1: The model, reading upwards, with one transformer layer opened up: 16 kHz audio, a feature extractor of 7 convolutional layers giving one frame every 20 ms, a convolutional position encoder added back to the frames, 48 pre-LayerNorm transformer layers of width 1,280, a final LayerNorm and a CTC head over 9,812 characters. Every attention head and every FFN unit has its own Hard Concrete gate z. The cells in the opened layer are layer 12 of karna-large: 11 of 16 heads and 3,788 of 5,120 FFN units kept; which ones are kept is schematic.</em></p>
@@ -88,13 +93,13 @@ Karna was trained on about **2,034 hours** of speech, mixed 50/50 between Khmer 
 **What pruning removes.** Each encoder layer keeps only the attention heads and FFN units that the L0 gates leave open, so every layer has its own width. The model dimension, the CNN front end and the CTC head stay intact.
 
 <p align="center">
-  <img src="assets/pruning.png" width="1000" alt="The fine-tuned omniASR CTC-1B before structured pruning and karna-large after: CNN and CTC head kept, attention heads and FFN units removed" />
+  <img src="https://raw.githubusercontent.com/netra-ai-lab/Karna/master/assets/pruning.png" width="1000" alt="The fine-tuned omniASR CTC-1B before structured pruning and karna-large after: CNN and CTC head kept, attention heads and FFN units removed" />
 </p>
 
 <p><em>Figure 2: Structured pruning removes whole attention heads (MHA) and FFN units from every transformer layer, chosen by one Hard Concrete gate each; the CNN front end is kept. Each cell is a quarter of a layer's heads or FFN units: layer 12 of karna-large keeps 11 of 16 heads and 3,788 of 5,120 FFN units, and layer 40 keeps no heads and 264 FFN units. Training runs in five steps: fine-tune, prune, cut, distil with the mask frozen, and recover with CTC and logit distillation ([docs/DESIGN.md](docs/DESIGN.md)).</em></p>
 
 <p align="center">
-  <img src="assets/inference_time.png" width="560" alt="Inference time for 60 s of audio at 0% and 80% encoder sparsity, for the base and large models" />
+  <img src="https://raw.githubusercontent.com/netra-ai-lab/Karna/master/assets/inference_time.png" width="560" alt="Inference time for 60 s of audio at 0% and 80% encoder sparsity, for the base and large models" />
 </p>
 
 <p><em>Figure 3: Inference time before and after pruning, for one 60 s utterance (batch 1, bf16, median of 20 runs on one machine; `training/scripts/07_time_inference.py`). At about 80% encoder sparsity karna-base runs 1.6× faster than its teacher and karna-large 2.2× faster. Over the batched test sets (the Speed column below) the speed-ups are 1.8× and 2.4×.</em></p>
@@ -141,28 +146,51 @@ Karna was trained on about **2,034 hours** of speech, mixed 50/50 between Khmer 
 - **Teachers.** The teachers here are the v2 fine-tuned models (a full pass over the training mix). The teachers on Hugging Face are still the first release's, which score 2.47 (1B) and 3.68 (300M) on DDD.
 - **More results.** [docs/RESULTS.md](docs/RESULTS.md) adds FLEURS-en and LibriSpeech test-other, the first release against v2, and the ablations behind the recipe: pruning without fine-tuning first, and Stage 3 without distillation or with a shorter schedule.
 
-## 5. Install
+## 5. Quick start
+
+The quickest way in is the Docker image: a web app and REST API with both models inside.
+
+1. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) for Windows, Mac or Linux. In its settings, give it at least 4 GB of memory.
+2. Open a terminal (PowerShell on Windows, Terminal on Mac) and run:
+
+   ```bash
+   docker run -d --name karna -p 8000:8000 -v karna-data:/data ghcr.io/netra-ai-lab/karna
+   ```
+
+3. Open http://localhost:8000. Drop an audio file on the page, or record from the microphone.
+
+> **The page won't open?** The app needs port 8000, which `-p 8000:8000` sets up. If you start the image from Docker Desktop's *Images* tab instead, open *Optional settings* and set *Host port* to `8000`. The models load in the background for the first few seconds, and the header says *Ready* once they have.
+
+| | |
+| :--- | :--- |
+| Platforms | Windows and Linux PCs (x86-64) and ARM64, including Apple Silicon Macs |
+| GPU | Not needed; runs on the CPU |
+| Download | <!-- TODO: measure the pushed image (compressed / unpacked) -->, both models included |
+| Memory | <!-- TODO: measure with docker stats (idle / transcribing with karna-large) --> |
+| Speed | karna-base 8.7 s and karna-large 17.0 s per minute of audio (16-thread AMD Zen 3 laptop CPU, batch 8) |
+| Internet | Not needed after the download. Audio never leaves your computer. |
+| Input | wav, flac, ogg or mp3 of Khmer or English speech, up to 30 s per file |
+| Output | Lowercase text without punctuation, as txt or json |
+
+**Python package.** For scripts and pipelines, install from PyPI. Inference runs on [ONNX Runtime](https://onnxruntime.ai), so PyTorch isn't needed.
 
 ```bash
-pip install git+https://github.com/netra-ai-lab/Karna
-# or, from a checkout:  pip install -e ".[train,dev]"
+pip install "netra-karna[cpu]"          # or [gpu] for CUDA, [full] for the web app too
 ```
 
 | Extra | Adds |
 | --- | --- |
-| *(none)* | `karna` Python API and command line: torch, numpy, soundfile, soxr, safetensors, huggingface_hub |
-| `train` | The training pipeline in `training/`: pyyaml, pyarrow, editdistance, datasets, fairseq2 and omnilingual-asr (only to read the stock checkpoints) |
-| `dev` | pytest |
+| *(none)* | The `karna` library and command: numpy, soundfile, soxr, huggingface_hub. Add one runtime below. |
+| `cpu` | ONNX Runtime for the CPU |
+| `gpu` | ONNX Runtime with CUDA (instead of `cpu`) |
+| `server` | The web app and REST API (`karna serve`): fastapi, uvicorn |
+| `full` | `cpu` and `server` |
 
-The first run downloads the weights from [Hugging Face](https://huggingface.co/Netra-Lab/karna-base) and caches them under `~/.cache/huggingface` (`HF_HOME`):
-- karna-base: 285 MB;
-- karna-large: 869 MB.
-
-The CPU is enough, and CUDA is used when available.
+The first run downloads the ONNX model from [Hugging Face](https://huggingface.co/Netra-Lab/karna-base) and caches it under `~/.cache/huggingface` (`HF_HOME`): karna-base is 287 MB and karna-large 871 MB. `karna download` fetches them ahead of time, for offline use.
 
 ## 6. Usage
 
-**Python.** Load a model once, then transcribe files, arrays or batches of either.
+**Python.** Two lines to a transcript. Load a model once, then transcribe files, arrays or batches of either.
 
 ```python
 import karna
@@ -170,44 +198,65 @@ import karna
 asr = karna.load_model("karna-base")              # or "karna-large", a Hugging Face id, a local folder
 print(asr.transcribe("speech.wav"))             # one file -> one string
 print(asr.transcribe(["a.wav", "b.flac"]))      # a list -> a list, batched
-print(asr.transcribe((waveform, 44100)))        # a numpy array or tensor with its sample rate
+print(asr.transcribe((waveform, 44100)))        # a numpy array with its sample rate
 ```
 
 **Command line.** Each file prints as one line: the path, a tab, then the text.
 
 ```bash
-karna transcribe speech.wav other.flac --model karna-large
-karna models                                     # list the released models
+karna transcribe speech.wav other.flac --model karna-large    # --format txt|json, --device cpu|cuda
+karna models                                                  # list the released models
+karna download karna-base karna-large                         # fetch now, run offline later
+karna serve --port 8000                                       # the web app and REST API ([server] extra)
 ```
 
-**Train it yourself.** One script runs the whole recipe: data, conversion, fine-tune, prune, distil, recover, evaluate and export. It resumes where it stopped.
+**REST API.** Upload, then poll, or wait for the text in one call. Interactive docs are at `http://localhost:8000/docs`.
 
 ```bash
-pip install -e ".[train]"
+curl -F file=@speech.wav "http://localhost:8000/v1/transcribe?wait=true"           # the finished job, with result.text
+curl -F file=@speech.wav -F model=karna-large http://localhost:8000/v1/transcribe  # -> 202, the queued job
+curl http://localhost:8000/v1/jobs/<id>                                            # until "status": "done"
+curl -o speech.txt "http://localhost:8000/v1/jobs/<id>/export?format=txt"          # or json
+```
+
+| Setting | Default | Meaning |
+| :--- | :--- | :--- |
+| `KARNA_API_KEY` | *(unset)* | Require `X-API-Key` / `Authorization: Bearer` on `/v1/*`. Set it before exposing the port beyond your machine. |
+| `KARNA_MODEL` | `karna-base` | The model loaded at start; the other loads on first use |
+| `KARNA_MAX_SECONDS` | `30` | Longer audio is refused with HTTP 422 |
+
+[docs/USAGE.md](docs/USAGE.md) lists every flag, route, environment variable and device.
+
+**Train it yourself.** One script runs the whole recipe: data, conversion, fine-tune, prune, distil, recover, evaluate and export to ONNX. It resumes where it stopped. Training is a separate package in `training/`, with PyTorch.
+
+```bash
+pip install -e . -e training                       # or: bash training/setup.sh
 cp training/local.env.example training/local.env   # point it at your data
 training/run.sh base                               # or: training/run.sh large
 ```
 
 | Reference | |
 | --- | --- |
+| [Usage](docs/USAGE.md) | Python API, CLI flags, REST routes, environment variables, devices |
 | [Training](docs/TRAINING.md) | `run.sh` step by step, data layout, environment variables, checkpoints and resuming |
 | [Design](docs/DESIGN.md) | The pruning recipe, each decision and how it departs from DiariZen, the code map |
 | [Results](docs/RESULTS.md) | All test and dev numbers, the ablations, the pruning run step by step |
+| [Releasing](docs/RELEASING.md) | Exporting to ONNX, uploading, PyPI and Docker releases |
 
 ## 7. Limitations
 
 - **English is the weak side.** Pruning to about 80% costs English far more than Khmer, at 1.5–2× the teacher's WER. Use `karna-large`, or a fine-tuned teacher, when English accuracy matters.
 - **No punctuation or casing.** Output is lowercase with no punctuation, because the Omnilingual character vocabulary has no Khmer punctuation.
 - **Greedy decoding only.** There is no language model or beam search.
-- **One pass per file.** Each file is decoded in a single pass, so split long recordings into utterances first. Training used clips of 1–25 s.
+- **One pass per file.** Each file is decoded in a single pass, so split long recordings into utterances first. Training used clips of 1–25 s, and the web app and REST API refuse files over 30 s (`KARNA_MAX_SECONDS`).
 - **Two languages only.** The models were trained and tested on Khmer and English only; other languages Omnilingual supports will have degraded.
 - **The Khmer corpus is a manual download.** [DDD](https://huggingface.co/datasets/Digital-Divide-Data/khmer-speech-dataset) is public, but `training/run.sh` doesn't fetch it, and it reads DDD through its own shard index (see [docs/TRAINING.md](docs/TRAINING.md)).
 
 ## 8. Licensing
 
-This project is released under the Apache License 2.0 (see [LICENSE](LICENSE)).
+This project is released under the Apache License 2.0 (see [LICENSE](LICENSE)); [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) lists what it builds on.
 - **Weights:** derived from Meta's Omnilingual ASR CTC models, released under Apache 2.0.
-- **`karna/hardconcrete.py`:** ported from DiariZen, which is MIT-licensed.
+- **`training/karna_train/hardconcrete.py`:** ported from DiariZen, which is MIT-licensed.
 - **Training data:** DDD is CC BY-SA 4.0 ([Digital Divide Data](https://huggingface.co/datasets/Digital-Divide-Data/khmer-speech-dataset)), LibriSpeech is CC BY 4.0, and FLEURS is CC BY 4.0.
 
 ## References

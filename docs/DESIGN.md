@@ -7,7 +7,7 @@ Karna prunes Meta's Omnilingual ASR CTC models, `omniASR_CTC_1B` and `omniASR_CT
 The recipe follows *Fine-tune Before Structured Pruning* (Han et al., arXiv 2505.24111), which builds on DPHuBERT (Peng et al., arXiv 2305.17651) and the L0 relaxation of Louizos et al. (arXiv 1712.01312).
 
 1. **Fine-tune first.** The full model is CTC fine-tuned on the target data. It then serves as both the pruning initialisation and the frozen teacher.
-2. **Gates.** Hard Concrete L0 gates sit on every attention head and every FFN intermediate unit (`karna/hardconcrete.py`, ported from DiariZen).
+2. **Gates.** Hard Concrete L0 gates sit on every attention head and every FFN intermediate unit (`training/karna_train/hardconcrete.py`, ported from DiariZen).
 3. **Constraint.** An augmented-Lagrangian term `λ1 (s − t) + λ2 (s − t)²` drives the expected sparsity `s` toward a target `t`.
    - `t` ramps linearly from 0 to 0.8 over the first 25% of steps.
    - The multipliers are trained by gradient ascent.
@@ -63,10 +63,15 @@ The first release beats its teacher on DDD but loses English. For karna-base, te
 ## 5. Code map
 
 ```
-karna/model.py               prunable wav2vec2 CTC with fairseq2's parameter names; prune(); num_params()
-karna/hardconcrete.py        Hard Concrete gates (ported from DiariZen), pinned once per forward
-karna/text.py                Omnilingual char vocabulary, normalisation, greedy CTC decoding
-karna/asr.py, hub.py, cli.py the public API: load_model, transcribe, `karna` command
+karna/                            the pip package: inference only, on ONNX Runtime (no PyTorch)
+karna/text.py                     Omnilingual char vocabulary, normalisation, greedy CTC decoding
+karna/asr.py, models.py, cli.py   the public API: load_model, transcribe, the `karna` command, pinned HF revisions
+karna/inference/                  ONNX Runtime devices (session.py), model folders (hub.py), the recogniser
+karna/server/                     FastAPI REST API + web app (`karna serve`)
+training/karna_train/model.py     prunable wav2vec2 CTC with fairseq2's parameter names; prune(); num_params()
+training/karna_train/hardconcrete.py  Hard Concrete gates (ported from DiariZen), pinned once per forward
+training/karna_train/release.py   PyTorch release folders and checkpoints (load_release)
+training/karna_train/export_onnx.py  PyTorch -> ONNX model folder + parity check through the package
 training/karna_train/convert.py   fairseq2 checkpoint -> {"arch", "model"} + logit parity check
 training/karna_train/data.py      DDD/FLEURS-km + LibriSpeech/FLEURS-en mixed by audio seconds, resumable
 training/karna_train/train.py     trainer for finetune | prune | distill (+ logit KD)
