@@ -25,13 +25,13 @@ class FakeEngine(Engine):
         self.device = "cpu"
         return self.loaded[name]
 
-    def transcribe(self, name, wav, language="auto"):
+    def transcribe(self, name, wav, language="auto", decoder="auto"):
         self.load(name)
         self.__dict__.setdefault("calls", []).append((name, len(wav), 0))
         self.__dict__.setdefault("languages", []).append(language)
         return f"{name}: {len(wav)} samples"
 
-    def transcribe_tail(self, name, wav, skip, language="auto"):
+    def transcribe_tail(self, name, wav, skip, language="auto", decoder="auto"):
         self.load(name)
         self.__dict__.setdefault("languages", []).append(language)
         self.__dict__.setdefault("calls", []).append((name, len(wav), skip))

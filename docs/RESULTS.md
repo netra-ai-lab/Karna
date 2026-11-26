@@ -1,6 +1,6 @@
 # Results
 
-Greedy CTC decoding with no language model. CER is used for Khmer and WER for English, all in %, and lower is better. Compute is GMAC per second of audio. Every number comes from `training/runs/eval/*.json` and `training/runs/*/*/metrics.jsonl`.
+Sections 1–7: greedy CTC decoding with no language model. §8 measures inference away from the test sets, including beam search with a language model. CER is used for Khmer and WER for English, all in %, and lower is better. Compute is GMAC per second of audio. Every number comes from `training/runs/eval/*.json` and `training/runs/*/*/metrics.jsonl`.
 
 ## 1. Test sets
 
@@ -153,3 +153,86 @@ Its Stage 1 teacher reached 4.61 / 6.56 / 12.41 / 21.42 on dev (DDD / Libri / FL
 - **The 1B is a worse recovery teacher than the 300M,** on Khmer as well, where the 1B is trained (D).
 
 **Spike timing.** On LibriSpeech dev, only 45% of the v1 300M teacher's non-blank frames coincide with the 1B's (KL 2.7 nats per frame). After the first v2 Stage 1 with 1B KD, 78% coincide (KL 0.24).
+
+## 8. Real-world proxies (inference only, 2026-11-26)
+
+Sections 1–7 are in-domain: read speech, recorded clean, from the training sources. Microphone use is worse, and live use worse still. No real recordings with references were available, so `scripts/realworld_eval.py` builds proxies, all fixed by a seed:
+- **Natural sets:** other recordings than the training data. These are OpenSLR 42 (crowd-recorded Khmer, split into halves: tune on `slr42_dev`, report `slr42_test`), 600 clips of kmcorpus (spontaneous, colloquial Khmer with code-switching) and Common Voice Khmer test (12 clips).
+- **Simulated sets:** FLEURS-km test and LibriSpeech test-other (200 clips each) under five conditions:
+  - *noise:* MUSAN / ESC-50 background at 5–15 dB SNR;
+  - *reverb:* a simulated room and a 25 dB background;
+  - *far:* a room and 5–10 dB, like a laptop across the table;
+  - *phone:* 8 kHz mu-law with a 300 Hz high-pass and 15 dB.
+- **Live:** 40 utterances of a simulated set, joined by 0.3–2 s gaps of the same background, fed in 100 ms chunks through `Karna.stream()`.
+
+Settings were tuned only on dev sets: `slr42_dev`, `kmcorpus_dev` (400 other kmcorpus clips), FLEURS-km dev and LibriSpeech dev-clean under clean, noise and far. Every number below is on the test proxies, on CUDA (RTX 3060). On the CPU, karna-base matched CUDA to 0.1 points on the sets checked (kmcorpus, cv_km, FLEURS-km clean); the full CPU run was not finished. JSON is in `training/runs/eval/realworld/`; tables come from `scripts/realworld_report.py`.
+
+### Beam search with a character language model
+
+The new `decoder="beam"` is CTC prefix beam search, beam 8, with shallow fusion of a character 8-gram (interpolated modified Kneser-Ney, pruned, pure numpy). The LM was built by `scripts/build_char_lm.py` from text on the build machine (124 M Khmer and 52 M English characters): the Khmer web corpus, the ASR text corpus, the Khmer side of the MT corpus and the DDD training transcripts, plus LibriSpeech-960 and the English side of the MT corpus.
+
+The build removed every line sharing a 20-character span with an evaluation sentence, which dropped 22 k Khmer MT lines (FLEURS sentences come from FLoRes, which the MT corpus contains). The result is 65 MB, at 2.06 bits per character on FLEURS-km dev and 1.88 on LibriSpeech dev-clean.
+
+| Set | | karna-base greedy | karna-base beam + LM | karna-large greedy | karna-large beam + LM |
+| :--- | :--- | ---: | ---: | ---: | ---: |
+| slr42_test | CER | 11.3 | **8.5** | 9.1 | **8.2** |
+| kmcorpus | CER | 39.7 | **38.7** | 37.0 | **36.9** |
+| cv_km (12 clips) | CER | 16.3 | **7.7** | **3.3** | 3.6 |
+| fleurs_km clean | CER | 15.5 | **13.0** | 10.5 | **9.2** |
+| fleurs_km noise | CER | 29.7 | **25.6** | 19.1 | **17.2** |
+| fleurs_km reverb | CER | 41.6 | **37.6** | 29.0 | **27.0** |
+| fleurs_km far | CER | 60.7 | **56.1** | 47.6 | **46.1** |
+| fleurs_km phone | CER | 29.8 | **25.6** | 19.0 | **17.3** |
+| libri_other clean | WER | 23.3 | **17.4** | 13.3 | **11.0** |
+| libri_other noise | WER | 40.9 | **33.0** | 24.9 | **20.6** |
+| libri_other reverb | WER | 47.3 | **39.4** | 30.6 | **26.2** |
+| libri_other far | WER | 65.1 | **58.1** | 49.8 | **44.7** |
+| libri_other phone | WER | 44.6 | **36.7** | 26.1 | **21.8** |
+
+- **Settings** (`lm_weight`, Khmer insertion bonus, ASCII and space bonus): karna-base 0.5 / 2.5 / 0.5, karna-large 0.5 / 1.0 / 0.5. Khmer takes a larger bonus because it is written with more characters per second of speech.
+  - The bonus is the risky knob. With LM weight 0.5, bonus 2.0 took karna-large's kmcorpus CER from 37.0 to 42.0, through insertions in long, uncertain stretches of spontaneous speech. The read-speech dev sets never showed this.
+  - With `kmcorpus_dev` added, the rule became the lowest mean error among settings no worse than greedy on any dev set. That rule picked bonus 1.0 for karna-large.
+- **Cost:** 3–8 ms of one CPU core per second of audio, so about 0.2–0.5 s per minute against 8.7 s (karna-base) for the graph on the reference laptop. Beam search reads the graph's new `sub_logp` output, a log-softmax over the blank and the 127 writable characters, so the 9,812-wide scores still never leave the session. Its effect on graph speed was not measured separately.
+- **Unchanged:** greedy text, and `decoder="auto"` without an LM, so all golden transcripts are identical.
+
+### Live transcription
+
+The live finals use beam search; partials stay greedy so they stay fast. The energy endpointer's `ratio` went from 4 to 3: a frame is speech when it is 9.5 dB above the noise floor, not 12 dB. All other endpointer settings are unchanged.
+
+| Live set | | karna-base before | karna-base now | karna-large before | karna-large now |
+| :--- | :--- | ---: | ---: | ---: | ---: |
+| fleurs_km clean | CER | 16.3 | **14.1** | 10.7 | **9.4** |
+| fleurs_km noise | CER | 33.5 | **29.9** | 23.9 | **22.3** |
+| fleurs_km far | CER | 65.2 | **53.6** | 57.5 | **45.8** |
+| libri_other clean | WER | 24.5 | **18.6** | 13.1 | **10.3** |
+| libri_other noise | WER | 35.3 | **26.2** | 21.4 | **14.6** |
+
+How the two changes add up, live, for karna-large (greedy, ratio 4 → greedy, ratio 3 → beam, ratio 3):
+
+| | fleurs_km clean | noise | far | libri_other clean | noise |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| greedy, ratio 4 | 10.7 | 23.9 | 57.5 | 13.1 | 21.4 |
+| greedy, ratio 3 | 10.4 | 24.1 | 47.5 | 12.9 | 18.2 |
+| beam + LM, ratio 3 | **9.4** | **22.3** | **45.8** | **10.3** | **14.6** |
+
+- **Ratio 3 fixes far speech.**
+  - At ratio 4, 35–38 % of the far-field speech was in no segment, or in one whose final came back empty. At ratio 3 it is 5 %.
+  - Mid-utterance cuts dropped from 69 to 53 (far), and from 35 to 21 for noisy English.
+  - Clean streams are unchanged: 44 cuts became 43, and 10 % of the speech still has no text.
+  - An offline sweep of the segmentation alone: speech missed in far went from 17.0 % (ratio 4) to 5.1 % (3) and 1.8 % (2.5), and in noisy English from 8.6 % to 1.9 % (3). Ratio 2.5 was not run live.
+- **Decode cost** went from 0.074–0.088 to 0.079–0.090 s per second of audio for karna-large (0.043–0.055 → 0.048–0.054 for karna-base). That is more segments with text, plus the beam.
+- **Drafts change a little more:** a partial's CER against its final rose by up to 5 points (mostly 1–2; one set fell by 2), because drafts are greedy and finals use the beam.
+
+### Tried and not kept
+
+| | Result |
+| :--- | :--- |
+| Silero VAD v5 instead of the energy rule | Kept only as an option, `vad="silero"`. It tells speech from noise, so it covered much less of the noisy gaps than the energy rule (noise: 0 % of gaps against 64 %; far: 0 % against 92 %). But it scored much Khmer speech low: it missed 21 % of clean FLEURS-km speech against 10 % for energy, 26 % against 3 % in noise and 44 % against 17 % far. Thresholds of 0.3–0.5 all missed 21–44 %, and lower thresholds never released. It also isn't level-invariant: without gain control it missed quiet utterances after loud ones, and live CER on clean FLEURS-km was 34.8 against 16.3. A 1 s automatic gain stage in front of it (`karna/vad.py`) is kept for the option. |
+| A smaller LM (half the text quota, 42 MB, 2.11 bits per character) | Slightly worse on the dev sets than the full one. A pruned variant (more count pruning, 49 MB) was worse again (2.16 bits per character). |
+| Beam 16 | karna-base dev: 0–3 % relative better than beam 8, at 1.5× the cost (15.5 against 10.5 ms per second of audio). |
+| ORT's offline transformer fusion (`onnxruntime.transformers.optimizer`) | It finds only Gelu, LayerNorm and SkipLayerNorm, which `ORT_ENABLE_ALL` already fuses at load. karna-base CPU, batch 4 × 10 s: 1.38 s against 1.42 s, inside the run-to-run spread (1.29–1.89 s). |
+| fp16 | Not tried. GPU fp32 already runs at RTF 0.005–0.009 (below); on CPU, fp16 storage would only shrink the download. |
+
+### Speed on a GPU
+
+Golden clips, RTX 3060 12 GB, onnxruntime-gpu 1.32, `scripts/benchmark.py --device cuda --repeat 3`: karna-base 0.31 s per minute of audio (RTF 0.005), karna-large 0.54 s (RTF 0.009); model load 0.5 s and 1.1 s. The CPU parity check also passes on CUDA: the golden transcripts are 4/4 identical for both models.

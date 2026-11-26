@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import sys
 
 from .models import DEFAULT_MODEL, MODELS
@@ -13,10 +14,29 @@ from .models import DEFAULT_MODEL, MODELS
 def _transcribe(args: argparse.Namespace) -> None:
     from .asr import load_model
 
+    from .asr import SINGLE_PASS_S
+    from .audio import load_audio
+
     asr = load_model(args.model, args.device)
-    texts = asr.transcribe(list(args.audio), batch_size=args.batch_size, language=args.language)
+    if args.lm:
+        from .models import lm_settings
+
+        os.environ["KARNA_LM"] = args.lm  # so lm_settings reads this LM's tuned settings
+        asr.set_lm(args.lm, **lm_settings(asr.name)[1])
+    wavs = [load_audio(path, asr.sample_rate) for path in args.audio]
+    short = [i for i, w in enumerate(wavs) if len(w) / asr.sample_rate <= SINGLE_PASS_S]
+    texts: list = [None] * len(wavs)
+    segments: dict[int, list] = {}
+    for i, text in zip(short, asr.transcribe([wavs[i] for i in short], batch_size=args.batch_size,
+                                             language=args.language, decoder=args.decoder)):
+        texts[i] = text
+    for i, w in enumerate(wavs):  # longer recordings: split at pauses
+        if texts[i] is None:
+            long = asr.transcribe_long(w, language=args.language, decoder=args.decoder, batch_size=args.batch_size)
+            texts[i], segments[i] = long["text"], long["segments"]
     if args.format == "json":
-        rows = [{"file": path, "text": text} for path, text in zip(args.audio, texts)]
+        rows = [{"file": path, "text": text, **({"segments": segments[i]} if i in segments else {})}
+                for i, (path, text) in enumerate(zip(args.audio, texts))]
         print(json.dumps({"model": asr.name, "device": asr.device, "results": rows}, ensure_ascii=False, indent=2))
         return
     for path, text in zip(args.audio, texts):
@@ -52,7 +72,7 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--version", action="version", version=f"%(prog)s {_version()}")
     sub = ap.add_subparsers(dest="command", required=True)
 
-    t = sub.add_parser("transcribe", help="transcribe audio files")
+    t = sub.add_parser("transcribe", help="transcribe audio files (over 30 s: split at pauses)")
     t.add_argument("audio", nargs="+", help="audio files (wav, flac, ogg, mp3, ...)")
     t.add_argument("--model", default=DEFAULT_MODEL,
                    help=f"{' or '.join(MODELS)}, a Hugging Face id or a model folder (default {DEFAULT_MODEL})")
@@ -60,6 +80,10 @@ def main(argv: list[str] | None = None) -> None:
     t.add_argument("--batch-size", type=int, default=8)
     t.add_argument("--language", choices=["auto", "km", "en"], default="auto",
                    help="auto: Khmer or English; km: never output Latin letters; en: English only")
+    t.add_argument("--decoder", choices=["auto", "greedy", "beam"], default="auto",
+                   help="auto (default): beam search when a language model is set (--lm or $KARNA_LM), "
+                        "else greedy; greedy: the per-frame argmax; beam: CTC beam search")
+    t.add_argument("--lm", help="character language model (.npz) for beam search (default: $KARNA_LM)")
     t.add_argument("--format", choices=["tsv", "txt", "json"], default="tsv",
                    help="tsv: <path><TAB><text> per file (default); txt: the text only; json: one document")
     t.set_defaults(func=_transcribe)

@@ -164,3 +164,25 @@ def test_later_utterances_are_decoded_after_the_end_of_the_previous_one():
     assert not wav[:SR // 2].any() and not wav[-SR // 2:].any()
     context = wav[SR // 2:skip]
     assert np.abs(context[:SR // 2]).max() > 0.45   # the louder first tone (the segment ends in 0.3 s of quiet)
+
+
+def test_transcribe_long_splits_and_gives_context():
+    from karna.asr import Karna
+
+    calls = []
+
+    class FakeRecognizer:
+        sample_rate = SR
+
+        def transcribe(self, wavs, batch_size=8, language="auto", skips=None):
+            calls.append((len(wavs), skips))
+            return [f"n={len(w) - (s or 0)}" for w, s in zip(wavs, skips or [0] * len(wavs))]
+
+    signal = np.concatenate([quiet(0.5), tone(6.0), quiet(2.0), tone(6.0), quiet(2.0), tone(3.0), quiet(1.0)])
+    out = Karna(FakeRecognizer()).transcribe_long(signal, batch_size=8)
+    segs = out["segments"]
+    assert len(segs) == 3 and calls[0][0] == 3  # one batch
+    skips = calls[0][1]
+    assert skips[0] == 0 and skips[1] == skips[2] == SR // 2 + SR  # 0.5 s padding + 1 s context
+    assert all(s["end"] > s["start"] for s in segs) and segs[1]["start"] > segs[0]["end"]
+    assert out["text"] == " ".join(s["text"] for s in segs)

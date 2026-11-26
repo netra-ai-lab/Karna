@@ -21,6 +21,7 @@ asr.transcribe("speech.wav")                 # -> "text"
 asr.transcribe(["a.wav", "b.flac"])          # -> ["text", "text"], same order
 karna.transcribe("speech.wav")               # one call; the model is cached per process
 asr.transcribe("speech.wav", language="km")  # Khmer: Latin letters are never written
+asr.transcribe_long("meeting.mp3")           # any length: {"text", "segments": [{"start", "end", "text"}]}
 ```
 
 **Language.** Karna's vocabulary has 9,812 characters inherited from Omnilingual, but only Khmer and English are ever right. `language` limits what the decoder may pick:
@@ -51,7 +52,9 @@ Such sequences show as ◌. Streamed on the golden km clips, the clean-up took k
 | Call | |
 | --- | --- |
 | `karna.load_model(name_or_path="karna-base", device=None)` | A `Karna` object. `name_or_path` is a short name (`karna-base`, `karna-large`), a Hugging Face repo id with an `onnx/` folder, an `hf://repo/folder@revision` source, or a local model folder. |
-| `Karna.transcribe(audio, batch_size=8, language="auto", clean=True)` | Text for one input, or a list of texts for a list. Inputs are sorted by length and batched, then returned in your order. |
+| `Karna.transcribe(audio, batch_size=8, language="auto", clean=True, decoder="auto")` | Text for one input, or a list of texts for a list. Inputs are sorted by length and batched, then returned in your order. Each input is decoded in one pass. |
+| `Karna.transcribe_long(audio, language="auto", clean=True, decoder="auto", batch_size=8, vad=None, context_s=1.0)` | A recording of any length, split at pauses as [live transcription](#live-transcription) does, each piece decoded with the last 1 s of the one before it as context. Returns `{"text", "segments"}`. `vad` is `energy` (default) or `silero`; other keywords go to the endpointer (e.g. `max_segment_s`). |
+| `Karna.set_lm(path, **beam)` | The character language model for beam search (see [Decoding](#decoding)) and beam settings: `lm_weight`, `insertion_bonus` (Khmer characters), `insertion_bonus_latin` (ASCII and space), `beam`. |
 | `karna.transcribe(audio, model="karna-base", device=None, batch_size=8, language="auto")` | Both steps in one call. |
 | `karna.available_models()` | `{"karna-base": "Netra-Lab/karna-base", ...}` |
 | `asr.device`, `asr.name`, `asr.num_parameters`, `asr.sample_rate` | What was loaded. `num_parameters` comes from the model folder's `netra-model.json`. |
@@ -94,20 +97,37 @@ An utterance closes:
 
 Short pieces lose context: cut at every brief pause, a 2 s piece of Khmer can come back in Latin script. Each decode gets 0.5 s of silence on both sides, which brought karna-large back to the offline text on a quiet FLEURS clip.
 
-The options are keyword arguments to `stream()`: `language`, `clean`, `partial_interval_s`, `pad_ms`, `context_s`, `min_silence_ms`, `min_segment_s`, `long_silence_ms`, `max_segment_s`, `preroll_ms`, `tail_ms`, `min_speech_ms`, `abs_floor` and `ratio` (see `karna/streaming.py`).
+The options are keyword arguments to `stream()`: `language`, `clean`, `decoder` (finals only), `partial_interval_s`, `pad_ms`, `context_s`, `min_silence_ms`, `min_segment_s`, `long_silence_ms`, `max_segment_s`, `preroll_ms`, `tail_ms`, `min_speech_ms`, `abs_floor`, `ratio` and `vad` (see `karna/streaming.py`).
+
+`vad="silero"` detects speech with Silero VAD v5.1.2 (MIT, 2.3 MB, downloaded once from its GitHub tag into `KARNA_CACHE_DIR/vad` and checked by sha256) instead of the energy rule. It tells speech from noise, so in a noisy room segments close at pauses instead of running to the 15 s cut. But it scores much Khmer speech low, so the energy rule stays the default ([docs/RESULTS.md](RESULTS.md#8-real-world-proxies-inference-only-2026-11-26)).
 
 How close it is: on the golden clips, fed in 100 ms chunks, 4 of 8 (clip, model) pairs give exactly the offline text, and the rest are 1–5 characters apart. A partial costs a decode of the whole open utterance, at the batch speed below: a 5 s utterance takes about 0.7 s with karna-base and 1.4 s with karna-large on the reference laptop CPU. A final arrives about 1 s (base) or 2–4 s (large) after the speaker stops; for long karna-large utterances (13 s) it was about 5–6 s. Shorter segments would bring finals sooner, but cost accuracy: on the 50 s microphone recording, karna-large's CER against its offline text went from 0.24 (segments up to 15 s) to 0.35 (8 s) and 0.60 (6 s).
 
 For Khmer from a microphone, use karna-large. On the same 50 s recording, karna-large's live output was 0.6 % Latin letters, while karna-base's was 35–48 %, even offline.
 
-Stereo is averaged to mono. Each input is decoded in one pass, so split recordings longer than about 30 s into utterances first.
+Stereo is averaged to mono. `transcribe` decodes each input in one pass, and the models were trained on 1–25 s clips, so use `transcribe_long` for anything longer than about 30 s. The CLI and the server do this for you.
+
+### Decoding
+
+`decoder` picks how the model's per-frame scores become text:
+
+| `decoder` | |
+| --- | --- |
+| `greedy` | The likeliest character per frame, repeats and blanks removed. What the published graph's `ids` output gives. |
+| `beam` | CTC prefix beam search (`karna/inference/beam.py`), with a character 8-gram language model of Khmer and English text (`karna/inference/lm.py`, pure numpy). |
+| `auto` (default) | `beam` when a language model is set, else `greedy`. |
+
+A language model is set with `asr.set_lm(path)`, or for every model at once with `KARNA_LM=<file.npz>`. The beam settings tuned for each model are read from `<file>.json` next to it. Without one, Karna decodes greedily, exactly as before. Build the model with `scripts/build_char_lm.py` (below), and tune its settings with `scripts/tune_lm.py`. Numbers are in [docs/RESULTS.md](RESULTS.md#8-real-world-proxies-inference-only-2026-11-26).
+
+To make beam search possible, the cached graph copy (`KARNA_CACHE_DIR/graphs`) has one more output, `sub_logp`: log-probabilities over the blank and the 127 characters a model can write in `auto` mode, so the 9,812-wide scores still never leave the session. Live partials are always greedy; finals use `decoder`.
 
 PyTorch checkpoints and release folders (`config.json` + `model.safetensors`) don't load here. They run in the training package (`karna_train.release.load_release`), and `training/export.sh` turns them into a model folder.
 
 ## Command line
 
 ```
-karna transcribe AUDIO... [--model karna-base] [--device auto] [--batch-size 8] [--language auto|km|en] [--format tsv]
+karna transcribe AUDIO... [--model karna-base] [--device auto] [--batch-size 8] [--language auto|km|en]
+                          [--decoder auto|greedy|beam] [--lm FILE.npz] [--format tsv]
 karna models
 karna download [MODEL...] [--device cpu]
 karna serve [--host 127.0.0.1] [--port 8000] [--model karna-base] [--device auto]
@@ -116,7 +136,7 @@ karna --version
 
 | Command | |
 | --- | --- |
-| `transcribe` | `--format tsv` (default) prints `path<TAB>text` per file; `txt` prints the text only; `json` prints `{"model", "device", "results": [{"file", "text"}, ...]}`. |
+| `transcribe` | `--format tsv` (default) prints `path<TAB>text` per file; `txt` prints the text only; `json` prints `{"model", "device", "results": [{"file", "text"}, ...]}`, with `segments` for files over 30 s. Files over 30 s are split at pauses (`transcribe_long`). `--lm` (or `KARNA_LM`) turns on beam search with that language model. |
 | `models` | The released models, their size and repo. |
 | `download` | Fetches models now, for offline use later (then set `HF_HUB_OFFLINE=1`). `--device` fetches only the files that device needs. |
 | `serve` | The web app and REST API. Needs the `server` extra; without it, the command names the extra. |
@@ -133,7 +153,7 @@ One worker thread runs the models, so jobs run one at a time, in order. A job is
 | --- | --- |
 | `GET /health` | `{"status": "ok"}`; the Docker HEALTHCHECK |
 | `GET /v1/info` | Version, device, `models_ready`, the models and the limits. Needs no key. |
-| `POST /v1/transcribe` | Form fields `file` (the audio), and optionally `model` and `language` (`auto`, `km` or `en`). Returns 202 with the queued job. With `?wait=true`, it blocks for up to 5 minutes and returns the finished job. |
+| `POST /v1/transcribe` | Form fields `file` (the audio), and optionally `model` and `language` (`auto`, `km` or `en`). Returns 202 with the queued job. With `?wait=true`, it blocks for up to 5 minutes and returns the finished job. Audio over 30 s is split at pauses, and `result.segments` gives each piece with its times. |
 | `GET /v1/jobs` | All jobs, newest first |
 | `GET /v1/jobs/{id}` | One job: `status` is `queued`, `running`, `done` or `failed` (with `error`); the text is in `result.text` |
 | `DELETE /v1/jobs/{id}` | 204 |
@@ -149,17 +169,17 @@ curl -H "X-API-Key: $KEY" -F file=@speech.flac -F model=karna-large http://local
 
 The web page's **Live** button uses this. Text appears as you speak, and the session is saved as a job in Recent when you stop. Each utterance gets its own line, with an orange bar while it is open. The line settles from the front: words turn white once two drafts in a row agree on them, white text only grows and later drafts don't change it, and only the end of the line (about the last 4 s of speech) is grey. In a real-time karna-large session of a 50 s Khmer recording, 29 % of the open line was white and the final changed 3.3 % of the white characters. Once you move on, the grey words shimmer while the final decode runs; when the final arrives the whole line is white and never changes. **Settled only** in the stage header hides the grey words (the choice is remembered).
 
-1. Open `ws://host:port/v1/stream` and send `{"type": "start", "model": "karna-base", "api_key": "..."}`. `model` and `api_key` are optional. Partials are decoded by the same model as finals. To get faster but rougher partials, send `"partial_model"`, for example `"karna-base"` with `"model": "karna-large"`: karna-base drafts came about every 1 s instead of every 1–3 s, but on a 50 s Khmer microphone recording they were mostly unreadable (CER 0.55 against 0.24 for karna-large). `"language"` is `auto`, `km` or `en`, as in [Python](#python). A browser can't set headers on a WebSocket, so the key goes in this message; other clients may send `X-API-Key` or `Authorization: Bearer` instead.
-2. The server answers `{"type": "ready", "model", "partial_model", "language", "sample_rate": 16000, "max_seconds"}`.
+1. Open `ws://host:port/v1/stream` and send `{"type": "start", "model": "karna-base", "api_key": "..."}`. `model` and `api_key` are optional. Partials are decoded by the same model as finals. To get faster but rougher partials, send `"partial_model"`, for example `"karna-base"` with `"model": "karna-large"`: karna-base drafts came about every 1 s instead of every 1–3 s, but on a 50 s Khmer microphone recording they were mostly unreadable (CER 0.55 against 0.24 for karna-large). `"language"` is `auto`, `km` or `en`, and `"decoder"` is `auto`, `greedy` or `beam` (for finals), as in [Python](#python). A browser can't set headers on a WebSocket, so the key goes in this message; other clients may send `X-API-Key` or `Authorization: Bearer` instead.
+2. The server answers `{"type": "ready", "model", "partial_model", "language", "decoder", "sample_rate": 16000, "max_seconds"}`.
 3. Send binary frames of **16 kHz mono little-endian int16 PCM**, of any size; about 100 ms each works well.
 4. The server sends `partial` and `final` events, as in [Live transcription](#live-transcription) above.
 5. Send `{"type": "stop"}`. The server closes the last utterance and sends `{"type": "done", "text", "job", "reason"}`, then closes the socket. `job` is the saved job, or `null` when no speech was heard. `reason` is `stop`, `limit` (the session reached `KARNA_MAX_STREAM_SECONDS`) or `disconnect`. Saved jobs have `"live": true` and `result.segments` with times; no audio is kept.
 
-The web page captures the microphone with an `AudioContext` at 16 kHz, so the browser resamples it. Firefox refuses that, so there the page resamples with a windowed-sinc filter (7 kHz cutoff); a plain averaging filter let 8–16 kHz noise alias into the speech band. Automatic gain control is off, because the model normalises each utterance itself.
+The web page captures the microphone with an `AudioContext` at 16 kHz, so the browser resamples it. Firefox refuses that, so there the page resamples with a windowed-sinc filter (7 kHz cutoff); a plain averaging filter let 8–16 kHz noise alias into the speech band. Automatic gain control is off, because the model normalises each utterance itself. **Microphone** on the page picks the browser's noise suppression: **Filtered** (on, the default) or **Raw** (off). It is remembered, and applies to recordings too.
 
 Live decodes run on the same worker as file jobs, ahead of any queued ones. A new partial is skipped while the last one is still decoding, so a slow machine sends fewer partials instead of falling behind. Close codes:
 - **1003:** the first message wasn't a start message;
-- **1008:** a missing or wrong key, or an unknown model (after an `error` event);
+- **1008:** a missing or wrong key, or an unknown model, language or decoder (after an `error` event);
 - **1013:** `KARNA_MAX_STREAMS` sessions are already open.
 
 ```python
@@ -195,10 +215,12 @@ Errors are JSON `{"detail": "..."}`:
 | `KARNA_HOST`, `KARNA_PORT` | `127.0.0.1`, `8000` | Where `karna serve` listens (the Docker image listens on `0.0.0.0`) |
 | `KARNA_MODEL` | `karna-base` | The model the server loads at start; the other loads on first use |
 | `KARNA_DATA_DIR` | `~/.cache/karna/server` | Where jobs live (`/data` in Docker) |
-| `KARNA_CACHE_DIR` | `~/.cache/karna` | The graphs with a `token_bias` input, in `graphs/` (`/data/cache` in Docker) |
+| `KARNA_CACHE_DIR` | `~/.cache/karna` | The graphs with a `token_bias` input and a `sub_logp` output, in `graphs/` (`/data/cache` in Docker) |
+| `KARNA_LM` | *(unset)* | A character language model (`.npz`) for beam search, with its tuned settings in `<file>.json`; `none` turns it off |
+| `KARNA_VAD_MODEL` | *(unset: download)* | A local Silero VAD v5 file for `vad="silero"`, for offline use |
 | `KARNA_API_KEY` | *(unset)* | Requires `X-API-Key: <key>` or `Authorization: Bearer <key>` on `/v1/*` except `/v1/info` |
-| `KARNA_MAX_SECONDS` | `30` | Longer audio is refused with 422 |
-| `KARNA_MAX_UPLOAD_MB` | `50` | Larger uploads are refused with 413 |
+| `KARNA_MAX_SECONDS` | `3600` | Longer audio is refused with 422. Audio over 30 s is split at pauses. |
+| `KARNA_MAX_UPLOAD_MB` | `200` | Larger uploads are refused with 413 |
 | `KARNA_KEEP_JOBS` | `200` | Finished jobs kept on disk; the oldest are deleted first |
 | `KARNA_MAX_STREAM_SECONDS` | `600` | The longest live session; it then finishes as if stopped (`reason: "limit"`) |
 | `KARNA_MAX_STREAMS` | `2` | Live sessions at once; more are refused with close code 1013 |
@@ -224,3 +246,13 @@ docker compose up --build              # from a checkout, see docker-compose.yml
 ```
 
 The image is CPU-only. It has both models inside and runs offline (`HF_HUB_OFFLINE=1`), as a non-root user, with jobs in the `/data` volume. Every image build runs `docker/smoke_test.py`, which transcribes the test clips with both models. For a GPU, install the `gpu` extra on the host instead.
+
+## Building the language model
+
+```bash
+python scripts/build_char_lm.py --out training/runs/lm/karna-char8      # 134 s on an i7-13700KF; a 65 MB file
+python scripts/tune_lm.py --model karna-base --lm training/runs/lm/karna-char8.npz \
+    --weights 0.3 0.5 0.7 --bonus 0.5 1 1.5 2 2.5 --bonus-latin 0.5
+```
+
+`build_char_lm.py` reads the text on this machine (paths at the top of the script): the Khmer web corpus, the ASR text corpus, the Khmer side of the Khmer-English MT corpus and the DDD training transcripts, plus the LibriSpeech-960 transcripts and the English side of the MT corpus. It samples each to a character quota, removes duplicates and every line that shares 20 characters with an evaluation sentence (FLEURS, DDD dev/test, SLR42, kmcorpus, Common Voice, LibriSpeech dev/test, the golden clips), and counts an interpolated modified Kneser-Ney 8-gram with pruning. It writes `<out>.npz` and `<out>.json`, a manifest with the sources, hashes, counts and bits per character. `tune_lm.py` grid-searches the beam settings on the dev sets of `scripts/realworld_eval.py`, which include spontaneous speech (`kmcorpus_dev`): there, a large insertion bonus makes karna-large insert characters, so pick a setting that is no worse than greedy on any dev set. Copy the chosen settings into the manifest as `"beam": {"karna-base": {...}, "karna-large": {...}}`.

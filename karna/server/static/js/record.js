@@ -3,8 +3,8 @@
 
 const RATE = 16000;
 
-export async function recordWav({ maxSeconds = 30, onTick = () => {} } = {}) {
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+export async function recordWav({ maxSeconds = 30, onTick = () => {}, noiseSuppression = true } = {}) {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression } });
   const recorder = new MediaRecorder(stream);
   const chunks = [];
   recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };

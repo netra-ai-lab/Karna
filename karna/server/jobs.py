@@ -55,14 +55,22 @@ class Engine:
             self.device = self.loaded[name].device
         return self.loaded[name]
 
-    def transcribe(self, name: str, wav, language: str = "auto") -> str:
-        return self.load(name).transcribe(wav, language=language)
+    def transcribe(self, name: str, wav, language: str = "auto", decoder: str = "auto") -> str:
+        extra = {} if decoder == "auto" else {"decoder": decoder}
+        return self.load(name).transcribe(wav, language=language, **extra)
 
-    def transcribe_tail(self, name: str, wav, skip: int, language: str = "auto") -> str:
+    def transcribe_long(self, name: str, wav, language: str = "auto") -> dict:
+        """``{"text", "segments"}`` for a recording longer than one pass (``Karna.transcribe_long``)."""
+        return self.load(name).transcribe_long(wav, language=language)
+
+    def transcribe_tail(self, name: str, wav, skip: int, language: str = "auto", decoder: str = "auto") -> str:
         """Text for ``wav[skip:]``, with ``wav[:skip]`` as context (``Recognizer.transcribe_tail``)."""
         from ..text import clean_khmer
 
-        return clean_khmer(self.load(name).recognizer.transcribe_tail(wav, skip, language=language))
+        asr = self.load(name)
+        decoder = asr._decoder(decoder) if hasattr(asr, "_decoder") else decoder
+        extra = {} if decoder in ("auto", "greedy") else {"decoder": decoder}
+        return clean_khmer(asr.recognizer.transcribe_tail(wav, skip, language=language, **extra))
 
 
 class JobStore:
@@ -221,9 +229,19 @@ class JobStore:
             job = self._update(job_id, status="running", started=time.time())
             start = time.perf_counter()
             wav = decode((folder / "upload.bin").read_bytes())
-            text = self.engine.transcribe(job["model"], wav, language=job.get("language", "auto"))
+            from ..asr import SINGLE_PASS_S
+
+            language = job.get("language", "auto")
+            segments = None
+            if len(wav) / 16000 > SINGLE_PASS_S:  # split at pauses, decoded with left context
+                long = self.engine.transcribe_long(job["model"], wav, language=language)
+                text, segments = long["text"], long["segments"]
+            else:
+                text = self.engine.transcribe(job["model"], wav, language=language)
             result = {"text": text, "model": job["model"], "device": self.engine.device,
                       "duration_s": job["duration_s"], "seconds": round(time.perf_counter() - start, 3)}
+            if segments is not None:
+                result["segments"] = segments
             (folder / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
             (folder / "upload.bin").unlink(missing_ok=True)
             self._update(job_id, status="done", finished=time.time())

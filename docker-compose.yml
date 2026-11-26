@@ -12,7 +12,7 @@ services:
     environment:
       KARNA_MODEL: karna-base        # loaded at start; karna-large loads on first use
       # KARNA_API_KEY: change-me     # require a key for /v1/*
-      # KARNA_MAX_SECONDS: "30"
+      # KARNA_MAX_SECONDS: "3600"
     restart: unless-stopped
 
 volumes:

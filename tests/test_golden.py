@@ -16,7 +16,7 @@ def test_golden(name):
     want = json.loads((GOLDEN / "golden.json").read_text(encoding="utf-8"))["models"][name]
     asr = karna.load_model(name, device="cpu")
     clips = sorted(want)
-    assert dict(zip(clips, asr.transcribe([str(GOLDEN / "audio" / c) for c in clips]))) == want
+    assert dict(zip(clips, asr.transcribe([str(GOLDEN / "audio" / c) for c in clips], decoder="greedy"))) == want
 
 
 def edit_distance(a: str, b: str) -> int:
@@ -40,7 +40,7 @@ def test_streaming_matches_offline(name):
     asr = karna.load_model(name, device="cpu")
     for clip, offline in sorted(want.items()):
         wav = load_audio(str(GOLDEN / "audio" / clip))
-        live = asr.stream()
+        live = asr.stream(decoder="greedy")
         events = [e for i in range(0, len(wav), 1600) for e in live.feed(wav[i:i + 1600])] + live.finish()
         assert any(e["type"] == "partial" for e in events)
         assert edit_distance(live.text, offline) <= 0.15 * len(offline), (clip, live.text, offline)

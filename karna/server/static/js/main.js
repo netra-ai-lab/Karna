@@ -40,9 +40,11 @@ function toast(text) {
 // ── model and language choices (segmented controls) ───────────────────
 const model = () => document.querySelector('input[name="model"]:checked')?.value || state.info?.default_model || "karna-base";
 const language = () => document.querySelector('input[name="language"]:checked')?.value || "auto";
+// "Microphone": the browser's noise suppression on (filtered, the default) or off (raw)
+const noiseSuppression = () => (document.querySelector('input[name="capture"]:checked')?.value || "filtered") !== "raw";
 
 function lockChoices(locked) {
-  for (const input of document.querySelectorAll('input[name="model"], input[name="language"]')) input.disabled = locked;
+  for (const input of document.querySelectorAll('input[name="model"], input[name="language"], input[name="capture"]')) input.disabled = locked;
 }
 
 function renderModels(info) {
@@ -66,6 +68,12 @@ function renderModels(info) {
   const input = document.querySelector(`input[name="language"][value="${saved}"]`) || document.querySelector('input[name="language"][value="auto"]');
   input.checked = true;
   for (const el of document.querySelectorAll('input[name="language"]')) el.addEventListener("change", () => store("karna.language", el.value));
+}
+{
+  const saved = stored("karna.capture", "filtered");
+  const input = document.querySelector(`input[name="capture"][value="${saved}"]`) || document.querySelector('input[name="capture"][value="filtered"]');
+  input.checked = true;
+  for (const el of document.querySelectorAll('input[name="capture"]')) el.addEventListener("change", () => store("karna.capture", el.value));
 }
 
 // ── engine status ──────────────────────────────────────────────────────
@@ -269,6 +277,7 @@ $("#record").addEventListener("click", async () => {
     const maxSeconds = state.info?.max_seconds || 30;
     state.recorder = await recordWav({
       maxSeconds,
+      noiseSuppression: noiseSuppression(),
       onTick: (s) => { label.textContent = `Stop · ${s.toFixed(0)} s`; },
     });
     btn.setAttribute("aria-pressed", "true");
@@ -574,6 +583,7 @@ $("#live-btn").addEventListener("click", async () => {
     state.live = await streamMic({
       model: chosen,
       language: lang,
+      noiseSuppression: noiseSuppression(),
       apiKey: apiKey(),
       maxSeconds: state.info?.max_stream_seconds || 600,
       onTick: (s) => { $("#live-time").textContent = clock(s); },

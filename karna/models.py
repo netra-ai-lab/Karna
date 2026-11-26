@@ -5,6 +5,10 @@ is ``onnx/`` in it (the PyTorch weights at the repo root are for fine-tuning). T
 loads each repo at a pinned commit, ``revision`` below, so a model upload never changes
 what an installed version runs.
 
+``KARNA_LM=<file.npz>`` is the character language model for beam search (``scripts/build_char_lm.py``);
+the beam settings tuned for each model are read from ``<file>.json`` next to it (``"beam"``).
+``KARNA_LM=none`` turns it off.
+
 ``KARNA_BUNDLES=<dir>`` points at local model folders with the same names
 (``<dir>/karna-base/netra-model.json``, e.g. from ``training/export.sh``); a model missing
 from it falls back to Hugging Face. ``KARNA_DEVICE`` picks the device ("cpu", "cuda", ...;
@@ -76,3 +80,26 @@ def get(name_or_path: str | Path = DEFAULT_MODEL, device: str | None = None):
     if key not in _loaded:
         _loaded[key] = Recognizer(key[0], device=key[1])
     return _loaded[key]
+
+
+def lm_settings(name_or_path: str | Path) -> tuple[Path, dict] | None:
+    """The language model to use with a model, and its beam settings: from ``KARNA_LM``, else none.
+
+    Settings come from the LM's manifest (``<lm>.json``, ``"beam"``: per model name, or
+    ``"default"``); a model without tuned settings gets ``lm_weight`` 0.5.
+    """
+    import json
+
+    env = os.environ.get("KARNA_LM", "").strip()
+    if not env or env.lower() == "none":
+        return None
+    path = Path(env).expanduser()
+    if not path.is_file():
+        raise FileNotFoundError(f"KARNA_LM={env}: no such file")
+    settings: dict = {"lm_weight": 0.5}
+    manifest = path.with_suffix(".json")
+    if manifest.is_file():
+        beam = json.loads(manifest.read_text(encoding="utf-8")).get("beam", {})
+        key = Path(str(name_or_path)).name
+        settings = dict(beam.get(key) or beam.get("default") or settings)
+    return path, settings

@@ -7,6 +7,7 @@ Karna is released under the Apache License 2.0 (see [LICENSE](LICENSE)). It buil
 | Work | Licence | Used for |
 | --- | --- | --- |
 | [Omnilingual ASR](https://github.com/facebookresearch/omnilingual-asr) `omniASR_CTC_300M` and `omniASR_CTC_1B` (Meta) | Apache-2.0 | The starting weights and the character vocabulary. karna-base and karna-large are derived from them and released under Apache-2.0. |
+| [Silero VAD](https://github.com/snakers4/silero-vad) v5.1.2 `silero_vad.onnx` (Silero Team) | MIT | Not redistributed: downloaded unchanged from its v5.1.2 tag on first use of the optional `vad="silero"` detector |
 
 ## Code
 
@@ -14,7 +15,7 @@ Karna is released under the Apache License 2.0 (see [LICENSE](LICENSE)). It buil
 | --- | --- | --- |
 | [DiariZen](https://github.com/BUTSpeechFIT/DiariZen) Hard Concrete gates, from DPHuBERT and FLOP | MIT | `training/karna_train/hardconcrete.py` (training only; not in the `netra-karna` package) |
 
-The `netra-karna` package depends on numpy, soundfile (libsndfile), soxr, huggingface_hub and ONNX Runtime, and with the `server` extra on FastAPI and Uvicorn. They are installed by pip under their own licences and aren't redistributed here. The Docker image contains them, each with its licence in its installed package metadata.
+The `netra-karna` package depends on numpy, soundfile (libsndfile), soxr, huggingface_hub, onnx and ONNX Runtime, and with the `server` extra on FastAPI and Uvicorn. They are installed by pip under their own licences and aren't redistributed here. The Docker image contains them, each with its licence in its installed package metadata.
 
 ## Data
 
@@ -27,6 +28,8 @@ The models were trained on the following. None of it is redistributed in this re
 | [FLEURS](https://huggingface.co/datasets/google/fleurs) (Google) | CC BY 4.0 |
 
 The four clips in `tests/golden/audio/` come from FLEURS (km) and LibriSpeech, under CC BY 4.0; [tests/golden/README.md](tests/golden/README.md) gives the rows.
+
+The character language model for beam search (`scripts/build_char_lm.py`) is built locally from text corpora on the build machine and is not in this repository. Its build manifest lists the sources; check their licences before publishing a built model.
 
 ## Fonts
 

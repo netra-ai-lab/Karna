@@ -47,6 +47,13 @@
               <label title="English only"><input type="radio" name="language" value="en"><span>English</span></label>
             </div>
           </div>
+          <div class="seg-field">
+            <span class="seg-label" id="capture-label">Microphone</span>
+            <div class="segmented" id="capture" role="radiogroup" aria-labelledby="capture-label">
+              <label title="The browser's noise suppression is on (live captions and recordings)"><input type="radio" name="capture" value="filtered"><span>Filtered</span></label>
+              <label title="No noise suppression: try it if words are cut off or quiet speech is missed"><input type="radio" name="capture" value="raw"><span>Raw</span></label>
+            </div>
+          </div>
           <label class="field key" id="key-field" hidden><span>API key</span><input id="key" class="input" type="password" autocomplete="off"></label>
         </div>
         <div class="action-row">

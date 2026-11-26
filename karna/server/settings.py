@@ -23,9 +23,10 @@ class Settings:
     device: str | None = field(default_factory=lambda: os.environ.get("KARNA_DEVICE") or None)
     #: when set, /v1/* (except /v1/info) needs "Authorization: Bearer <key>" or "X-API-Key: <key>"
     api_key: str | None = field(default_factory=lambda: os.environ.get("KARNA_API_KEY") or None)
-    #: longer audio is refused: each file is decoded in one pass, and training used 1-25 s clips
-    max_seconds: float = field(default_factory=lambda: float(os.environ.get("KARNA_MAX_SECONDS", "30")))
-    max_upload_mb: float = field(default_factory=lambda: float(os.environ.get("KARNA_MAX_UPLOAD_MB", "50")))
+    #: longer audio is refused. Files over 30 s are split at pauses (``Karna.transcribe_long``),
+    #: since training used 1-25 s clips
+    max_seconds: float = field(default_factory=lambda: float(os.environ.get("KARNA_MAX_SECONDS", "3600")))
+    max_upload_mb: float = field(default_factory=lambda: float(os.environ.get("KARNA_MAX_UPLOAD_MB", "200")))
     #: live transcription (WebSocket /v1/stream): longest session, and sessions at once
     max_stream_seconds: float = field(default_factory=lambda: float(os.environ.get("KARNA_MAX_STREAM_SECONDS", "600")))
     max_streams: int = field(default_factory=lambda: int(os.environ.get("KARNA_MAX_STREAMS", "2")))

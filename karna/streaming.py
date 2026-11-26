@@ -63,14 +63,23 @@ class Endpointer:
     pause of ``long_silence_ms`` whatever its length, and at ``max_segment_s`` (cut at the quietest
     frame of its last 2 s). Short segments lose context: cut at every brief pause, a 2 s piece of
     Khmer can come back in Latin script.
+
+    ``vad="silero"`` replaces the energy rule with Silero VAD (``karna.vad``), which tells speech
+    from background noise; the segment rules stay the same.
     """
 
     def __init__(self, sample_rate: int = 16000, frame_ms: int = 30, min_silence_ms: int = 600,
                  min_segment_s: float = 5.0, long_silence_ms: int = 1500, max_segment_s: float = 15.0,
                  preroll_ms: int = 300, tail_ms: int = 300, min_speech_ms: int = 300,
-                 abs_floor: float = 5e-4, ratio: float = 4.0) -> None:
+                 abs_floor: float = 5e-4, ratio: float = 3.0, vad=None) -> None:
+        from .vad import make_vad
+
         self.sample_rate = sample_rate
-        self.frame = int(sample_rate * frame_ms / 1000)
+        #: the speech detector (``karna.vad``); None is the energy rule below
+        self.vad = make_vad(vad)
+        if self.vad is not None:  # the detector sets the frame size (Silero: 512 samples, 32 ms)
+            frame_ms = int(round(self.vad.frame * 1000 / sample_rate))
+        self.frame = int(sample_rate * frame_ms / 1000) if self.vad is None else self.vad.frame
         self.frame_ms = frame_ms
         self.silence_frames = max(1, min_silence_ms // frame_ms)
         self.long_silence_frames = max(self.silence_frames, long_silence_ms // frame_ms)
@@ -134,7 +143,9 @@ class Endpointer:
 
     def _frame(self, frame: np.ndarray) -> Segment | None:
         rms = float(np.sqrt(np.mean(frame.astype(np.float64) ** 2)))
-        if rms < DIGITAL_SILENCE:     # a muted or just-opened microphone, padding: not the room
+        if self.vad is not None:
+            is_speech = rms >= DIGITAL_SILENCE and self.vad(frame, rms)
+        elif rms < DIGITAL_SILENCE:     # a muted or just-opened microphone, padding: not the room
             is_speech = False
         elif self.noise is None:      # the first real frame is taken as the room, unless it is loud
             self.noise = min(rms, INITIAL_NOISE_MAX)
@@ -223,9 +234,14 @@ class StreamingTranscriber:
 
     def __init__(self, decode: Callable[[np.ndarray], str], partial_interval_s: float = 0.8,
                  sample_rate: int = 16000, pad_ms: int = 500, context_s: float = 1.0,
-                 decode_context: Callable[[np.ndarray, int], str] | None = None, **endpointer_opts) -> None:
+                 decode_context: Callable[[np.ndarray, int], str] | None = None,
+                 final_decode: Callable[[np.ndarray], str] | None = None,
+                 final_decode_context: Callable[[np.ndarray, int], str] | None = None, **endpointer_opts) -> None:
         self._decode = decode
         self._decode_context = decode_context
+        # finals may use a slower, better decoder (beam search) than partials
+        self._final_decode = final_decode or decode
+        self._final_decode_context = final_decode_context or decode_context
         self.pad = np.zeros(int(sample_rate * pad_ms / 1000), np.float32)
         self.context = Context(int(context_s * sample_rate))
         self.endpointer = Endpointer(sample_rate=sample_rate, **endpointer_opts)
@@ -234,41 +250,84 @@ class StreamingTranscriber:
         self._partial_at = 0             # open-segment length at the last partial
         self._partial_id: int | None = None
 
-    def decode(self, audio: np.ndarray) -> str:
-        if self._decode_context is not None and self.context.audio.size:
-            return self._decode_context(*self.context.wrap(audio, self.pad))
-        return self._decode(pad(audio, self.pad))
+    def decode(self, audio: np.ndarray, final: bool = False) -> str:
+        return self.job(audio, final)()
+
+    def job(self, audio: np.ndarray, final: bool = False) -> Callable[[], str]:
+        """A decode of ``audio`` to run now or later (the server runs it on its worker): padded,
+        with the end of the previous utterance as context as it is at this moment."""
+        plain, with_context = ((self._final_decode, self._final_decode_context) if final
+                               else (self._decode, self._decode_context))
+        if with_context is not None and self.context.audio.size:
+            wav, skip = self.context.wrap(audio, self.pad)
+            return lambda: with_context(wav, skip)
+        padded = pad(audio, self.pad)
+        return lambda: plain(padded)
 
     @property
     def text(self) -> str:
         return " ".join(f["text"] for f in self.finals if f["text"])
 
-    def feed(self, samples: np.ndarray) -> list[dict]:
-        events = [e for seg in self.endpointer.push(samples) for e in self._final(seg)]
+    # ---- the steps, for callers that run decodes elsewhere (karna.server's LiveSession)
+
+    def push(self, samples: np.ndarray) -> list[Segment]:
+        """Add samples; returns the segments that closed. Pass each to ``close``."""
+        return self.endpointer.push(samples)
+
+    def flush(self) -> list[Segment]:
+        """End of stream: the last segments. Pass each to ``close``."""
+        return self.endpointer.flush()
+
+    def due_partial(self) -> tuple[int, np.ndarray] | None:
+        """``(segment id, audio)`` when the open segment has grown by ``partial_interval_s``
+        since its last partial, else None. Decode it with ``job(audio)``."""
         ep = self.endpointer
-        if ep.open_id is not None:
-            if ep.open_id != self._partial_id:
-                self._partial_id, self._partial_at = ep.open_id, 0
-            if ep.open_samples - self._partial_at >= self.partial_samples:
-                audio = ep.open_audio()
-                assert audio is not None
-                self._partial_at = len(audio)
-                events.append({"type": "partial", "segment": ep.open_id, "text": self.decode(audio)})
-        return events
+        if ep.open_id is None:
+            return None
+        if ep.open_id != self._partial_id:
+            self._partial_id, self._partial_at = ep.open_id, 0
+        if ep.open_samples - self._partial_at < self.partial_samples:
+            return None
+        audio = ep.open_audio()
+        assert audio is not None
+        self._partial_at = len(audio)
+        return ep.open_id, audio
 
-    def finish(self) -> list[dict]:
-        return [e for seg in self.endpointer.flush() for e in self._final(seg)]
-
-    def _final(self, seg: Segment) -> list[dict]:
+    def close(self, seg: Segment) -> list[dict] | None:
+        """A segment closed. Returns its events when there is nothing to decode (too little
+        speech: an empty final clears a partial the UI may show); None when it needs a final
+        decode, ``job(seg.audio, final=True)``, whose text goes to ``accept``."""
         had_partial = self._partial_id == seg.id and self._partial_at > 0
         if self._partial_id == seg.id:
             self._partial_id, self._partial_at = None, 0
-        if not seg.keep:  # clear a partial the UI may be showing for it
+        if not seg.keep:
             return [final_event(seg, "")] if had_partial else []
-        event = final_event(seg, self.decode(seg.audio))
+        return None
+
+    def accept(self, seg: Segment, text: str) -> dict:
+        """The final text of ``seg``: its event. It becomes the next decode's context."""
+        event = final_event(seg, text)
         self.context.update(seg)
         self.finals.append(event)
-        return [event]
+        return event
+
+    # ---- synchronous use
+
+    def feed(self, samples: np.ndarray) -> list[dict]:
+        events = [e for seg in self.push(samples) for e in self._final(seg)]
+        due = self.due_partial()
+        if due is not None:
+            events.append({"type": "partial", "segment": due[0], "text": self.job(due[1])()})
+        return events
+
+    def finish(self) -> list[dict]:
+        return [e for seg in self.flush() for e in self._final(seg)]
+
+    def _final(self, seg: Segment) -> list[dict]:
+        done = self.close(seg)
+        if done is not None:
+            return done
+        return [self.accept(seg, self.job(seg.audio, final=True)())]
 
 
 class Context:

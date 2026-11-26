@@ -80,11 +80,11 @@ function toInt16(samples) {
 // Returns { stop, done }: stop() ends the session; done resolves with the server's "done" message.
 // onLevel(rms) gets the microphone level about 20 times a second, for a meter.
 export async function streamMic({ model, language = "auto", apiKey = "", maxSeconds = 600, onMessage = () => {},
-                                  onTick = () => {}, onLevel = () => {} } = {}) {
+                                  onTick = () => {}, onLevel = () => {}, noiseSuppression = true } = {}) {
   // Automatic gain is off: it changes the gain within an utterance, and the model normalises
-  // each utterance itself.
+  // each utterance itself. Noise suppression is the user's choice (the "Microphone" setting).
   const media = await navigator.mediaDevices.getUserMedia({
-    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression, autoGainControl: false },
   });
   let ctx, source;
   try {
