@@ -108,7 +108,8 @@ def test_sub_logp_output(tmp_path, monkeypatch):
                                     onnx.helper.make_node("ArgMax", ["logits"], ["ids"], axis=-1, keepdims=0)],
                                    "g", [x], [y], [bias])
     src = tmp_path / "model.onnx"
-    onnx.save(onnx.helper.make_model(graph, opset_imports=[onnx.helper.make_opsetid("", 17)]), str(src))
+    # IR 8: loadable by every onnxruntime the package supports (a new onnx writes a newer IR by default)
+    onnx.save(onnx.helper.make_model(graph, opset_imports=[onnx.helper.make_opsetid("", 17)], ir_version=8), str(src))
     monkeypatch.setenv("KARNA_CACHE_DIR", str(tmp_path / "cache"))
     path = biased_graph(src, "toy", pieces)
     sess = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
