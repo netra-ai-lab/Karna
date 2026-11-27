@@ -7,6 +7,7 @@ Karna is released under the Apache License 2.0 (see [LICENSE](LICENSE)). It buil
 | Work | Licence | Used for |
 | --- | --- | --- |
 | [Omnilingual ASR](https://github.com/facebookresearch/omnilingual-asr) `omniASR_CTC_300M` and `omniASR_CTC_1B` (Meta) | Apache-2.0 | The starting weights and the character vocabulary. karna-base and karna-large are derived from them and released under Apache-2.0. |
+| [karna-lm](https://huggingface.co/Netra-Lab/karna-lm) `karna-char8.npz` (Netra Lab) | CC BY-SA 4.0 (it is derived in part from the DDD transcripts, CC BY-SA 4.0, and LibriSpeech, CC BY 4.0) | The character language model for beam search, downloaded on first use and baked into the Docker image |
 | [Silero VAD](https://github.com/snakers4/silero-vad) v5.1.2 `silero_vad.onnx` (Silero Team) | MIT | Not redistributed: downloaded unchanged from its v5.1.2 tag on first use of the optional `vad="silero"` detector |
 
 ## Code
@@ -29,7 +30,7 @@ The models were trained on the following. None of it is redistributed in this re
 
 The four clips in `tests/golden/audio/` come from FLEURS (km) and LibriSpeech, under CC BY 4.0; [tests/golden/README.md](tests/golden/README.md) gives the rows.
 
-The character language model for beam search (`scripts/build_char_lm.py`) is built locally from text corpora on the build machine and is not in this repository. Its build manifest lists the sources; check their licences before publishing a built model.
+The language model for beam search, [karna-lm](https://huggingface.co/Netra-Lab/karna-lm), was built by `scripts/build_char_lm.py` from Netra Lab's Khmer and Khmer–English text corpora, the DDD transcripts and the LibriSpeech transcripts; its card and manifest list them. The text isn't redistributed.
 
 ## Fonts
 

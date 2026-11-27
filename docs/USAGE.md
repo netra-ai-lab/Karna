@@ -117,7 +117,7 @@ Stereo is averaged to mono. `transcribe` decodes each input in one pass, and the
 | `beam` | CTC prefix beam search (`karna/inference/beam.py`), with a character 8-gram language model of Khmer and English text (`karna/inference/lm.py`, pure numpy). |
 | `auto` (default) | `beam` when a language model is set, else `greedy`. |
 
-A language model is set with `asr.set_lm(path)`, or for every model at once with `KARNA_LM=<file.npz>`. The beam settings tuned for each model are read from `<file>.json` next to it. Without one, Karna decodes greedily, exactly as before. Build the model with `scripts/build_char_lm.py` (below), and tune its settings with `scripts/tune_lm.py`. Numbers are in [docs/RESULTS.md](RESULTS.md#8-real-world-proxies-inference-only-2026-11-26).
+The released models use [Netra-Lab/karna-lm](https://huggingface.co/Netra-Lab/karna-lm) (65 MB, CC BY-SA 4.0), downloaded at a pinned revision the first time a model loads, so `auto` means beam search. `KARNA_LM=none` (or `--lm none`, or `decoder="greedy"` per call) gives greedy decoding, exactly as before 1.3. `KARNA_LM=<file.npz>` or `asr.set_lm(path)` uses another model, and the beam settings tuned for each Karna model are read from `<file>.json` next to it. Local model folders and other repos get a language model only when `KARNA_LM` names one. If the model can't be downloaded and isn't cached (offline), Karna logs a warning and decodes greedily; `karna download` fetches it ahead of time. Build your own with `scripts/build_char_lm.py` (below), and tune its settings with `scripts/tune_lm.py`. Numbers are in [docs/RESULTS.md](RESULTS.md#8-real-world-proxies-inference-only-2026-11-26).
 
 To make beam search possible, the cached graph copy (`KARNA_CACHE_DIR/graphs`) has one more output, `sub_logp`: log-probabilities over the blank and the 127 characters a model can write in `auto` mode, so the 9,812-wide scores still never leave the session. Live partials are always greedy; finals use `decoder`.
 
@@ -129,16 +129,16 @@ PyTorch checkpoints and release folders (`config.json` + `model.safetensors`) do
 karna transcribe AUDIO... [--model karna-base] [--device auto] [--batch-size 8] [--language auto|km|en]
                           [--decoder auto|greedy|beam] [--lm FILE.npz] [--format tsv]
 karna models
-karna download [MODEL...] [--device cpu]
+karna download [MODEL...] [--device cpu] [--no-lm]
 karna serve [--host 127.0.0.1] [--port 8000] [--model karna-base] [--device auto]
 karna --version
 ```
 
 | Command | |
 | --- | --- |
-| `transcribe` | `--format tsv` (default) prints `path<TAB>text` per file; `txt` prints the text only; `json` prints `{"model", "device", "results": [{"file", "text"}, ...]}`, with `segments` for files over 30 s. Files over 30 s are split at pauses (`transcribe_long`). `--lm` (or `KARNA_LM`) turns on beam search with that language model. |
+| `transcribe` | `--format tsv` (default) prints `path<TAB>text` per file; `txt` prints the text only; `json` prints `{"model", "device", "results": [{"file", "text"}, ...]}`, with `segments` for files over 30 s. Files over 30 s are split at pauses (`transcribe_long`). `--lm` (or `KARNA_LM`) picks the language model: `karna-lm` (the default), a `.npz` file, or `none`. |
 | `models` | The released models, their size and repo. |
-| `download` | Fetches models now, for offline use later (then set `HF_HUB_OFFLINE=1`). `--device` fetches only the files that device needs. |
+| `download` | Fetches models and the language model now, for offline use later (then set `HF_HUB_OFFLINE=1`). `--device` fetches only the files that device needs; `--no-lm` skips the language model. |
 | `serve` | The web app and REST API. Needs the `server` extra; without it, the command names the extra. |
 
 `python -m karna` works the same as `karna`.
@@ -216,7 +216,7 @@ Errors are JSON `{"detail": "..."}`:
 | `KARNA_MODEL` | `karna-base` | The model the server loads at start; the other loads on first use |
 | `KARNA_DATA_DIR` | `~/.cache/karna/server` | Where jobs live (`/data` in Docker) |
 | `KARNA_CACHE_DIR` | `~/.cache/karna` | The graphs with a `token_bias` input and a `sub_logp` output, in `graphs/` (`/data/cache` in Docker) |
-| `KARNA_LM` | *(unset)* | A character language model (`.npz`) for beam search, with its tuned settings in `<file>.json`; `none` turns it off |
+| `KARNA_LM` | `karna-lm` for the released models | The language model for beam search: `karna-lm`, a `.npz` file (tuned settings in `<file>.json`), or `none` for greedy decoding |
 | `KARNA_VAD_MODEL` | *(unset: download)* | A local Silero VAD v5 file for `vad="silero"`, for offline use |
 | `KARNA_API_KEY` | *(unset)* | Requires `X-API-Key: <key>` or `Authorization: Bearer <key>` on `/v1/*` except `/v1/info` |
 | `KARNA_MAX_SECONDS` | `3600` | Longer audio is refused with 422. Audio over 30 s is split at pauses. |

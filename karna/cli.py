@@ -17,12 +17,11 @@ def _transcribe(args: argparse.Namespace) -> None:
     from .asr import SINGLE_PASS_S
     from .audio import load_audio
 
+    if args.lm:  # read by load_model (models.lm_settings), with this LM's tuned settings
+        os.environ["KARNA_LM"] = args.lm
+    elif args.decoder == "greedy":  # no need to fetch the language model
+        os.environ.setdefault("KARNA_LM", "none")
     asr = load_model(args.model, args.device)
-    if args.lm:
-        from .models import lm_settings
-
-        os.environ["KARNA_LM"] = args.lm  # so lm_settings reads this LM's tuned settings
-        asr.set_lm(args.lm, **lm_settings(asr.name)[1])
     wavs = [load_audio(path, asr.sample_rate) for path in args.audio]
     short = [i for i, w in enumerate(wavs) if len(w) / asr.sample_rate <= SINGLE_PASS_S]
     texts: list = [None] * len(wavs)
@@ -55,6 +54,10 @@ def _download(args: argparse.Namespace) -> None:
 
     for name in args.models or [DEFAULT_MODEL]:
         print(f"{name}\t{fetch(source(name), args.device)}")
+    if not args.no_lm:
+        from .models import DEFAULT_LM, lm_path
+
+        print(f"{DEFAULT_LM}\t{lm_path(DEFAULT_LM)}")
 
 
 def _serve(args: argparse.Namespace) -> None:
@@ -83,7 +86,7 @@ def main(argv: list[str] | None = None) -> None:
     t.add_argument("--decoder", choices=["auto", "greedy", "beam"], default="auto",
                    help="auto (default): beam search when a language model is set (--lm or $KARNA_LM), "
                         "else greedy; greedy: the per-frame argmax; beam: CTC beam search")
-    t.add_argument("--lm", help="character language model (.npz) for beam search (default: $KARNA_LM)")
+    t.add_argument("--lm", help="language model for beam search: karna-lm (default for released models), a .npz file, or none (default: $KARNA_LM)")
     t.add_argument("--format", choices=["tsv", "txt", "json"], default="tsv",
                    help="tsv: <path><TAB><text> per file (default); txt: the text only; json: one document")
     t.set_defaults(func=_transcribe)
@@ -93,6 +96,7 @@ def main(argv: list[str] | None = None) -> None:
     d = sub.add_parser("download", help="download models now, for offline use later")
     d.add_argument("models", nargs="*", help=f"default: {DEFAULT_MODEL}")
     d.add_argument("--device", default="cpu", help="fetch only the files this device needs (default cpu)")
+    d.add_argument("--no-lm", action="store_true", help="don't fetch the language model (karna-lm)")
     d.set_defaults(func=_download)
 
     s = sub.add_parser("serve", help="start the web app and REST API (needs the [server] extra)")

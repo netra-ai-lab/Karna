@@ -7,7 +7,8 @@
 #   docker run -p 8000:8000 -v karna-data:/data karna
 #   then open http://localhost:8000
 #
-# CPU only, and no PyTorch: the models run on ONNX Runtime (karna/inference).
+# CPU only, and no PyTorch: the models run on ONNX Runtime (karna/inference). The language model
+# for beam search (Netra-Lab/karna-lm, CC BY-SA 4.0) is baked in next to them, in /models/karna-lm.
 
 ARG PYTHON_VERSION=3.12
 
@@ -44,7 +45,7 @@ FROM base AS runtime
 LABEL org.opencontainers.image.title="Karna" \
       org.opencontainers.image.description="Khmer and English speech recognition: web app and REST API" \
       org.opencontainers.image.source="https://github.com/netra-ai-lab/Karna" \
-      org.opencontainers.image.licenses="Apache-2.0 AND OFL-1.1"
+      org.opencontainers.image.licenses="Apache-2.0 AND OFL-1.1 AND CC-BY-SA-4.0"
 
 RUN useradd --create-home --uid 10001 netra \
  && mkdir -p /data \

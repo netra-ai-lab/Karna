@@ -5,9 +5,12 @@ is ``onnx/`` in it (the PyTorch weights at the repo root are for fine-tuning). T
 loads each repo at a pinned commit, ``revision`` below, so a model upload never changes
 what an installed version runs.
 
-``KARNA_LM=<file.npz>`` is the character language model for beam search (``scripts/build_char_lm.py``);
-the beam settings tuned for each model are read from ``<file>.json`` next to it (``"beam"``).
-``KARNA_LM=none`` turns it off.
+The character language model for beam search is ``karna-lm`` (``LMS``), downloaded at a pinned
+revision the first time a released model loads; the beam settings tuned for each model are read
+from the ``.json`` manifest next to it (``"beam"``). ``KARNA_LM=<file.npz>`` uses another one
+(``scripts/build_char_lm.py``), and ``KARNA_LM=none`` turns it off. Local folders and other repos
+get a language model only when ``KARNA_LM`` names one. If it can't be fetched (offline, no
+cached copy), Karna warns and decodes greedily.
 
 ``KARNA_BUNDLES=<dir>`` points at local model folders with the same names
 (``<dir>/karna-base/netra-model.json``, e.g. from ``training/export.sh``); a model missing
@@ -33,6 +36,13 @@ MODELS = {
                     "params": "217M", "about": "pruned from omniASR CTC-1B; most accurate, best English"},
 }
 DEFAULT_MODEL = "karna-base"
+
+#: character language models for beam search: short name -> repo, file (with ``.json`` beside it), commit
+LMS = {
+    "karna-lm": {"repo": "Netra-Lab/karna-lm", "file": "karna-char8.npz",
+                 "revision": "538019ed3c062f74a76db891268bbde82cc561bd"},
+}
+DEFAULT_LM = "karna-lm"
 
 _loaded: dict = {}
 
@@ -82,20 +92,47 @@ def get(name_or_path: str | Path = DEFAULT_MODEL, device: str | None = None):
     return _loaded[key]
 
 
-def lm_settings(name_or_path: str | Path) -> tuple[Path, dict] | None:
-    """The language model to use with a model, and its beam settings: from ``KARNA_LM``, else none.
+def lm_path(name: str = DEFAULT_LM) -> Path:
+    """The local ``.npz`` of a language model in ``LMS`` (``KARNA_BUNDLES/<name>/`` first, else
+    downloaded once into the Hugging Face cache with its manifest)."""
+    m = LMS[name]
+    bundles = os.environ.get("KARNA_BUNDLES")
+    if bundles and (Path(bundles) / name / m["file"]).is_file():
+        return Path(bundles) / name / m["file"]
+    from huggingface_hub import hf_hub_download
 
-    Settings come from the LM's manifest (``<lm>.json``, ``"beam"``: per model name, or
-    ``"default"``); a model without tuned settings gets ``lm_weight`` 0.5.
+    manifest = str(Path(m["file"]).with_suffix(".json"))
+    hf_hub_download(m["repo"], manifest, revision=m["revision"])
+    return Path(hf_hub_download(m["repo"], m["file"], revision=m["revision"]))
+
+
+def lm_settings(name_or_path: str | Path) -> tuple[Path, dict] | None:
+    """The language model to use with a model, and its beam settings, or None (greedy).
+
+    ``KARNA_LM``: ``none``, a short name from ``LMS``, or a ``.npz`` file. Unset: ``karna-lm``
+    for the released models, none for local folders and other repos. Settings come from the
+    LM's manifest (``<lm>.json``, ``"beam"``: per model name, or ``"default"``); a model without
+    tuned settings gets ``lm_weight`` 0.5.
     """
     import json
+    import logging
 
-    env = os.environ.get("KARNA_LM", "").strip()
-    if not env or env.lower() == "none":
+    env = os.environ.get("KARNA_LM")
+    env = env.strip() if env is not None else (DEFAULT_LM if str(name_or_path) in MODELS else "none")
+    if not env or env.lower() in ("none", "off", "0"):
         return None
-    path = Path(env).expanduser()
-    if not path.is_file():
-        raise FileNotFoundError(f"KARNA_LM={env}: no such file")
+    if env in LMS:
+        try:
+            path = lm_path(env)
+        except Exception as error:  # offline with no cached copy, or the Hub is unreachable
+            logging.getLogger("karna").warning(
+                "language model %s unavailable (%s); decoding greedily. Set KARNA_LM=none to silence this.",
+                env, error)
+            return None
+    else:
+        path = Path(env).expanduser()
+        if not path.is_file():
+            raise FileNotFoundError(f"KARNA_LM={env}: no such file, and not one of {sorted(LMS)}")
     settings: dict = {"lm_weight": 0.5}
     manifest = path.with_suffix(".json")
     if manifest.is_file():

@@ -140,3 +140,37 @@ def test_silero_vad():
     ep = Endpointer(vad="silero")
     assert ep.frame == 512 and ep.push(quiet) == [] and ep.open_id is None
     assert Endpointer(vad="energy").vad is None
+
+
+def test_lm_settings_default_and_overrides(tmp_path, monkeypatch, caplog):
+    import json
+
+    from karna import models
+
+    lm = tmp_path / "karna-lm" / "karna-char8.npz"
+    lm.parent.mkdir()
+    lm.write_bytes(b"")
+    lm.with_suffix(".json").write_text(json.dumps({"beam": {"karna-large": {"lm_weight": 0.5, "insertion_bonus": 1.0},
+                                                            "default": {"lm_weight": 0.4}}}))
+    monkeypatch.delenv("KARNA_LM", raising=False)
+    monkeypatch.setenv("KARNA_BUNDLES", str(tmp_path))  # a local karna-lm folder, so no download
+    assert models.lm_path() == lm
+    # released models get karna-lm with their tuned settings; local folders and other repos none
+    assert models.lm_settings("karna-large") == (lm, {"lm_weight": 0.5, "insertion_bonus": 1.0})
+    assert models.lm_settings("karna-base") == (lm, {"lm_weight": 0.4})
+    assert models.lm_settings(str(tmp_path / "my-model")) is None
+    monkeypatch.setenv("KARNA_LM", "none")
+    assert models.lm_settings("karna-large") is None
+    monkeypatch.setenv("KARNA_LM", str(lm))  # a file: used for any model
+    assert models.lm_settings(str(tmp_path / "my-model")) == (lm, {"lm_weight": 0.4})
+    monkeypatch.setenv("KARNA_LM", str(tmp_path / "missing.npz"))
+    with pytest.raises(FileNotFoundError):
+        models.lm_settings("karna-base")
+
+    def offline(name="karna-lm"):
+        raise OSError("no network")
+
+    monkeypatch.delenv("KARNA_LM")
+    monkeypatch.setattr(models, "lm_path", offline)
+    assert models.lm_settings("karna-base") is None  # warns and decodes greedily
+    assert "decoding greedily" in caplog.text

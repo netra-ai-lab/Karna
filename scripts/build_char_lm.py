@@ -169,13 +169,16 @@ class Exclusion:
             s[len(s) - GRAM:] in grams
 
 
-def gather(enc: Encoder, excl: Exclusion, quota_scale: float, seed: int, log) -> tuple[dict, dict]:
+def gather(enc: Encoder, excl: Exclusion, quota_scale: float, seed: int, log,
+           only: list[str] | None = None) -> tuple[dict, dict]:
     """Per language, the training text as a uint8 stream with 0 between lines; and the manifest."""
     rng = np.random.default_rng(seed)
     streams = {"km": bytearray(b"\0"), "en": bytearray(b"\0")}
     seen: set[bytes] = set()
     manifest = {}
     for name, lang, path, reader, quota in SOURCES:
+        if only and name not in only:
+            continue
         if not path.exists():
             log(f"  {name}: missing {path}, skipped")
             continue
@@ -348,6 +351,9 @@ def save(path: Path, tables: dict, order: int, alphabet: list[str], meta: dict) 
         arrays[f"logp{k}"] = tables[k]["logp"].astype(np.float16)
         arrays[f"bow{k}"] = tables[k]["bow"].astype(np.float16)
     meta = {"order": order, "alphabet": alphabet, **meta}
+    # the model file is meant to be shared: no local paths or file times (the .json manifest keeps them)
+    meta["sources"] = {name: {k: v for k, v in src.items() if k not in ("path", "mtime", "bytes")}
+                       for name, src in meta.get("sources", {}).items()}
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.stem + ".tmp.npz")
     np.savez_compressed(tmp, meta=np.array(json.dumps(meta, ensure_ascii=False)), **arrays)
@@ -377,6 +383,8 @@ def main() -> None:
     ap.add_argument("--quota-scale", type=float, default=1.0, help="multiply every source's character quota")
     ap.add_argument("--seed", type=int, default=20261126)
     ap.add_argument("--reuse-text", action="store_true", help="reuse <out>.text.npz from an earlier run")
+    ap.add_argument("--sources", nargs="*", help="build from these sources only (default: all), e.g. "
+                    "ddd_train libri960 for text with a known licence")
     args = ap.parse_args()
     if not 1 <= args.order <= 8:
         raise SystemExit("--order must be 1..8 (a key is 8 bytes)")
@@ -406,7 +414,7 @@ def main() -> None:
     else:
         excl = Exclusion(enc, refs)
         log(f"exclusion index: {len(excl.grams):,} {GRAM}-grams, {len(excl.short):,} short sentences")
-        streams, manifest = gather(enc, excl, args.quota_scale, args.seed, log)
+        streams, manifest = gather(enc, excl, args.quota_scale, args.seed, log, args.sources)
         np.savez(text_cache, km=streams["km"], en=streams["en"], manifest=np.array(json.dumps(manifest)))
     stream = np.concatenate([streams["km"], streams["en"][1:]])
     log(f"text: Khmer {len(streams['km']) / 1e6:.1f} M, English {len(streams['en']) / 1e6:.1f} M symbols")

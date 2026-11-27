@@ -109,7 +109,7 @@ Karna was trained on about **2,034 hours** of speech, mixed 50/50 between Khmer 
 | Pruned units | Attention heads and FFN intermediate units (Hard Concrete L0 gates) |
 | Sparsity control | Augmented Lagrangian; target ramps 0 → 80% over the first 50% of Stage 2 |
 | Distillation | L1 − cosine on hidden states at 5 layers (Stages 2 and 2b); frame-level KL on outputs (Stage 3) |
-| Decoding | Greedy CTC by default; CTC beam search with a character 8-gram language model when one is given (`KARNA_LM`, `--lm`) |
+| Decoding | CTC beam search with a character 8-gram language model ([Netra-Lab/karna-lm](https://huggingface.co/Netra-Lab/karna-lm)); greedy with `KARNA_LM=none` |
 
 | Hyperparameter | karna-base | karna-large |
 | :--- | ---: | ---: |
@@ -186,7 +186,7 @@ pip install "netra-karna[cpu]"          # or [gpu] for CUDA, [full] for the web 
 | `server` | The web app and REST API (`karna serve`): fastapi, uvicorn |
 | `full` | `cpu` and `server` |
 
-The first run downloads the ONNX model from [Hugging Face](https://huggingface.co/Netra-Lab/karna-base) and caches it under `~/.cache/huggingface` (`HF_HOME`): karna-base is 287 MB and karna-large 871 MB. `karna download` fetches them ahead of time, for offline use.
+The first run downloads the ONNX model from [Hugging Face](https://huggingface.co/Netra-Lab/karna-base) and caches it under `~/.cache/huggingface` (`HF_HOME`): karna-base is 287 MB and karna-large 871 MB, plus the 65 MB language model ([karna-lm](https://huggingface.co/Netra-Lab/karna-lm)). `karna download` fetches them ahead of time, for offline use.
 
 ## 6. Usage
 
@@ -231,7 +231,7 @@ curl -o speech.txt "http://localhost:8000/v1/jobs/<id>/export?format=txt"       
 | `KARNA_API_KEY` | *(unset)* | Require `X-API-Key` / `Authorization: Bearer` on `/v1/*`. Set it before exposing the port beyond your machine. |
 | `KARNA_MODEL` | `karna-base` | The model loaded at start; the other loads on first use |
 | `KARNA_MAX_SECONDS` | `3600` | Longer audio is refused with HTTP 422; audio over 30 s is split at pauses |
-| `KARNA_LM` | *(unset)* | A character language model (`.npz`) for beam search; see [docs/USAGE.md](docs/USAGE.md#decoding) |
+| `KARNA_LM` | `karna-lm` | The language model for beam search; `none` decodes greedily. See [docs/USAGE.md](docs/USAGE.md#decoding) |
 | `KARNA_CACHE_DIR` | `~/.cache/karna` | Where each model's copy with a language input is kept (made on first load: 0.3 GB base, 0.9 GB large) |
 
 [docs/USAGE.md](docs/USAGE.md) lists every flag, route, environment variable and device.
@@ -256,7 +256,7 @@ training/run.sh base                               # or: training/run.sh large
 
 - **English is the weak side.** Pruning to about 80% costs English far more than Khmer, at 1.5–2× the teacher's WER. Use `karna-large`, or a fine-tuned teacher, when English accuracy matters.
 - **No punctuation or casing.** Output is lowercase with no punctuation, because the Omnilingual character vocabulary has no Khmer punctuation.
-- **The language model isn't shipped.** Beam search with a character language model lowered error on nearly every real-world proxy, for example karna-base OpenSLR Khmer CER 11.3 → 8.5 and karna-large test-other WER 13.3 → 11.0 ([docs/RESULTS.md](docs/RESULTS.md#8-real-world-proxies-inference-only-2026-11-26)), but the model is built from local text corpora (`scripts/build_char_lm.py`) and isn't published yet. Without one, Karna decodes greedily. `language` only limits which characters can be written; English from a microphone is still weak.
+- **A character language model, not a word one.** Beam search with [karna-lm](https://huggingface.co/Netra-Lab/karna-lm) lowered error on nearly every real-world proxy, for example karna-base OpenSLR Khmer CER 11.3 → 8.5 and karna-large test-other WER 13.3 → 11.0 ([docs/RESULTS.md](docs/RESULTS.md#8-real-world-proxies-inference-only-2026-11-26)), but it barely helps on spontaneous, colloquial Khmer (kmcorpus 37.0 → 36.9). `language` only limits which characters can be written; English from a microphone is still weak.
 - **Long files are split at pauses.** Training used clips of 1–25 s, so files over 30 s are cut at pauses (as in live transcription), each piece decoded with 1 s of the previous one as context. A cut inside a word can still cost a few characters.
 - **Two languages only.** The models were trained and tested on Khmer and English only; other languages Omnilingual supports will have degraded.
 - **The Khmer corpus is a manual download.** [DDD](https://huggingface.co/datasets/Digital-Divide-Data/khmer-speech-dataset) is public, but `training/run.sh` doesn't fetch it, and it reads DDD through its own shard index (see [docs/TRAINING.md](docs/TRAINING.md)).
